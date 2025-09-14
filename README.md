@@ -56,7 +56,7 @@ book-qc-cf/
 ├── book_extrator/              # Additional extraction modules
 ├── example_usage.py            # Usage examples
 ├── deploy.py                   # Deployment script
-└── requirements-working.txt    # Python dependencies
+└── requirements.txt            # Python dependencies
 ```
 
 ## 🚀 Quick Start
@@ -266,7 +266,7 @@ gcloud workflows execute pdf-processing-workflow \
 
 ```bash
 # Install dependencies
-pip install -r requirements-working.txt
+pip install -r requirements.txt
 
 # Set environment variables
 export PROJECT_ID="book-qc-cf"

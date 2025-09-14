@@ -1,4 +1,5 @@
-# Core dependencies
+# Working requirements - let pip resolve dependencies automatically
+# Core web framework
 Flask==2.3.3
 Werkzeug==2.3.7
 
@@ -6,16 +7,13 @@ Werkzeug==2.3.7
 PyMuPDF==1.23.8
 PyPDF2==3.0.1
 
-# Google Cloud dependencies (simplified to avoid dependency conflicts)
-google-cloud-storage==2.10.0
-google-cloud-run==0.10.0
-google-cloud-workflows==1.7.0
+# Google Cloud dependencies (let pip resolve versions)
+google-cloud-storage
+google-cloud-run
+google-cloud-workflows
 
-# Additional utilities
+# HTTP requests
 requests==2.31.0
 
-# Pin problematic dependencies to avoid resolution conflicts
-google-api-core==2.25.1
-google-auth==2.40.3
-grpcio==1.74.0
-protobuf==4.25.8
+# Production server
+gunicorn==21.2.0
