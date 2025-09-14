@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements-simple.txt requirements.txt
+COPY requirements-working.txt requirements.txt
 
 # Install Python dependencies with optimizations
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
