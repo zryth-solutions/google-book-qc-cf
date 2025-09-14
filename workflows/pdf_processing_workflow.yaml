@@ -2,17 +2,20 @@
 # This workflow orchestrates the PDF analysis and splitting pipeline
 
 main:
-  params:
-    - pdf_path: ""  # GCS path to the PDF file (e.g., gs://book-qc-cf-pdf-storage/sample.pdf)
-    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
-    - project_id: "book-qc-cf"  # GCP project ID
+  params: [pdf_path]
   
   steps:
+    # Set default values
+    - set_defaults:
+        assign:
+          - bucket_name: "book-qc-cf-pdf-storage"
+          - project_id: "book-qc-cf"
+    
     # Step 1: Analyze PDF
     - analyze_pdf:
         call: http.post
         args:
-          url: "https://pdf-processor-xxx.run.app/analyze"  # Will be updated after deployment
+          url: "https://pdf-processor-3b2xvx4raq-uc.a.run.app/analyze"  # Will be updated after deployment
           headers:
             Content-Type: "application/json"
           body:
@@ -32,7 +35,7 @@ main:
     - split_pdf:
         call: http.post
         args:
-          url: "https://pdf-processor-xxx.run.app/split"  # Will be updated after deployment
+          url: "https://pdf-processor-3b2xvx4raq-uc.a.run.app/split"  # Will be updated after deployment
           headers:
             Content-Type: "application/json"
           body:
@@ -77,95 +80,4 @@ main:
           error_message: "${split_result.error}"
           pdf_path: "${pdf_path}"
           analysis_gcs_path: "${analysis_result.analysis_gcs_path}"
-          processing_time: "${sys.now()}"
-
-# Alternative workflow for complete processing in one step
-complete_processing:
-  params:
-    - pdf_path: ""  # GCS path to the PDF file (e.g., gs://book-qc-cf-pdf-storage/sample.pdf)
-    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
-    - project_id: "book-qc-cf"  # GCP project ID
-  
-  steps:
-    # Single step: Complete processing (analyze + split)
-    - process_pdf:
-        call: http.post
-        args:
-          url: "https://pdf-processor-xxx.run.app/process"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
-          body:
-            pdf_path: "${pdf_path}"
-            bucket_name: "${bucket_name}"
-        result: process_result
-    
-    # Check if processing was successful
-    - check_processing:
-        switch:
-          - condition: ${process_result.status == "success"}
-            next: return_complete_success
-          - condition: true
-            next: handle_processing_error
-    
-    # Return success result
-    - return_complete_success:
-        return:
-          status: "success"
-          pdf_path: "${pdf_path}"
-          analysis_result: "${process_result.analysis_result}"
-          analysis_gcs_path: "${process_result.analysis_gcs_path}"
-          split_files: "${process_result.split_files}"
-          total_files: "${process_result.total_files}"
-          processing_time: "${sys.now()}"
-    
-    # Error handling
-    - handle_processing_error:
-        return:
-          status: "error"
-          error_type: "processing_failed"
-          error_message: "${process_result.error}"
-          pdf_path: "${pdf_path}"
-          processing_time: "${sys.now()}"
-
-# Batch processing workflow for multiple PDFs
-batch_processing:
-  params:
-    - pdf_paths: []  # List of GCS paths to PDF files (e.g., ["gs://book-qc-cf-pdf-storage/file1.pdf", "gs://book-qc-cf-pdf-storage/file2.pdf"])
-    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
-    - project_id: "book-qc-cf"  # GCP project ID
-    - parallel_limit: 5  # Maximum number of parallel processing tasks
-  
-  steps:
-    # Process each PDF in parallel (with limit)
-    - process_pdfs:
-        parallel:
-          for:
-            value: pdf_path
-            in: ${pdf_paths}
-          limit: ${parallel_limit}
-        call: complete_processing
-        args:
-          pdf_path: "${pdf_path}"
-          bucket_name: "${bucket_name}"
-          project_id: "${project_id}"
-        result: batch_results
-    
-    # Collect results
-    - collect_results:
-        assign:
-          successful: ${batch_results[?(@.status == "success")]}
-          failed: ${batch_results[?(@.status == "error")]}
-          total_processed: ${len(batch_results)}
-          success_count: ${len(batch_results[?(@.status == "success")])}
-          failure_count: ${len(batch_results[?(@.status == "error")])}
-    
-    # Return batch results
-    - return_batch_results:
-        return:
-          status: "completed"
-          total_processed: "${total_processed}"
-          success_count: "${success_count}"
-          failure_count: "${failure_count}"
-          successful_results: "${successful}"
-          failed_results: "${failed}"
           processing_time: "${sys.now()}"
