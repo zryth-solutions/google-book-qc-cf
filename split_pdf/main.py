@@ -41,6 +41,15 @@ REGION = os.getenv('REGION', 'us-central1')
 # Initialize bucket manager
 bucket_manager = BucketManager(PROJECT_ID, BUCKET_NAME)
 
+def extract_filename_from_gcs_path(gcs_path: str) -> str:
+    """Extract filename from GCS path"""
+    if gcs_path.startswith('gs://'):
+        # Remove gs://bucket-name/ prefix
+        parts = gcs_path.split('/', 3)
+        if len(parts) >= 4:
+            return parts[3]  # Return the filename part
+    return gcs_path
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -69,36 +78,45 @@ def analyze_pdf():
         
         bucket_name = data.get('bucket_name', BUCKET_NAME)
         
+        # Extract filename from GCS path
+        pdf_filename = extract_filename_from_gcs_path(pdf_gcs_path)
+        logger.info(f"Extracted filename: {pdf_filename} from {pdf_gcs_path}")
+        
         # Download PDF from GCS to temporary file
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
             temp_pdf_path = temp_pdf.name
         
         try:
             # Download PDF from bucket
-            if not bucket_manager.download_file(pdf_gcs_path, temp_pdf_path):
+            if not bucket_manager.download_file(pdf_filename, temp_pdf_path):
                 return jsonify({
                     'error': 'Failed to download PDF from GCS',
-                    'pdf_path': pdf_gcs_path
+                    'pdf_path': pdf_gcs_path,
+                    'filename': pdf_filename
                 }), 400
             
             # Analyze PDF
-            logger.info(f"Analyzing PDF: {pdf_gcs_path}")
+            logger.info(f"Starting PDF analysis for: {pdf_filename}")
             analysis_result = pdf_analyzer.analyze_pdf(temp_pdf_path)
             
-            # Upload analysis result to GCS
-            analysis_gcs_path = f"{pdf_gcs_path}_analysis.json"
-            if not bucket_manager.upload_json(analysis_result, analysis_gcs_path):
+            if not analysis_result:
                 return jsonify({
-                    'error': 'Failed to upload analysis result to GCS',
-                    'analysis_path': analysis_gcs_path
-                }), 500
+                    'error': 'PDF analysis failed',
+                    'pdf_path': pdf_gcs_path
+                }), 400
             
-            logger.info(f"Analysis completed and uploaded to: {analysis_gcs_path}")
+            # Upload analysis result to GCS
+            analysis_filename = f"analysis/{pdf_filename.replace('.pdf', '_analysis.json')}"
+            if not bucket_manager.upload_json(analysis_result, analysis_filename):
+                return jsonify({
+                    'error': 'Failed to upload analysis to GCS',
+                    'pdf_path': pdf_gcs_path
+                }), 400
             
             return jsonify({
                 'status': 'success',
                 'analysis_result': analysis_result,
-                'analysis_gcs_path': analysis_gcs_path,
+                'analysis_gcs_path': f"gs://{bucket_name}/{analysis_filename}",
                 'pdf_path': pdf_gcs_path
             })
             
@@ -106,12 +124,12 @@ def analyze_pdf():
             # Clean up temporary file
             if os.path.exists(temp_pdf_path):
                 os.unlink(temp_pdf_path)
-    
+                
     except BadRequest as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error in analyze_pdf: {str(e)}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/split', methods=['POST'])
 def split_pdf():
@@ -119,7 +137,7 @@ def split_pdf():
     Split PDF endpoint
     Expects JSON with:
     - pdf_path: GCS path to PDF file
-    - analysis_path: GCS path to analysis JSON file
+    - analysis_path: GCS path to analysis JSON
     - bucket_name: (optional) Override bucket name
     """
     try:
@@ -131,82 +149,60 @@ def split_pdf():
         analysis_gcs_path = data.get('analysis_path')
         bucket_name = data.get('bucket_name', BUCKET_NAME)
         
-        if not pdf_gcs_path:
-            raise BadRequest("pdf_path is required")
-        if not analysis_gcs_path:
-            raise BadRequest("analysis_path is required")
+        if not pdf_gcs_path or not analysis_gcs_path:
+            raise BadRequest("pdf_path and analysis_path are required")
         
-        # Download PDF and analysis from GCS
+        # Extract filenames from GCS paths
+        pdf_filename = extract_filename_from_gcs_path(pdf_gcs_path)
+        analysis_filename = extract_filename_from_gcs_path(analysis_gcs_path)
+        
+        # Download PDF from GCS to temporary file
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
             temp_pdf_path = temp_pdf.name
         
-        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as temp_json:
-            temp_json_path = temp_json.name
+        # Download analysis JSON from GCS
+        analysis_data = bucket_manager.download_json(analysis_filename)
+        if not analysis_data:
+            return jsonify({
+                'error': 'Failed to download analysis from GCS',
+                'analysis_path': analysis_gcs_path
+            }), 400
         
         try:
-            # Download files from bucket
-            if not bucket_manager.download_file(pdf_gcs_path, temp_pdf_path):
+            # Download PDF from bucket
+            if not bucket_manager.download_file(pdf_filename, temp_pdf_path):
                 return jsonify({
                     'error': 'Failed to download PDF from GCS',
                     'pdf_path': pdf_gcs_path
                 }), 400
             
-            analysis_data = bucket_manager.download_json(analysis_gcs_path)
-            if not analysis_data:
+            # Split PDF
+            logger.info(f"Starting PDF splitting for: {pdf_filename}")
+            split_files = pdf_splitter.split_pdf_by_json(temp_pdf_path, analysis_data, bucket_name)
+            
+            if not split_files:
                 return jsonify({
-                    'error': 'Failed to download analysis data from GCS',
-                    'analysis_path': analysis_gcs_path
+                    'error': 'PDF splitting failed',
+                    'pdf_path': pdf_gcs_path
                 }), 400
             
-            # Create temporary output directory
-            with tempfile.TemporaryDirectory() as temp_output_dir:
-                # Split PDF
-                logger.info(f"Splitting PDF: {pdf_gcs_path}")
-                split_files = pdf_splitter.split_pdf_by_json(
-                    temp_pdf_path, analysis_data, temp_output_dir
-                )
-                
-                # Upload split files to GCS
-                uploaded_files = []
-                for file_info in split_files:
-                    # Determine GCS path for the split file
-                    split_gcs_path = f"{pdf_gcs_path}_split/{file_info['folder']}/{file_info['filename']}"
-                    
-                    # Upload to GCS
-                    if bucket_manager.upload_file(file_info['path'], split_gcs_path):
-                        uploaded_files.append({
-                            'filename': file_info['filename'],
-                            'folder': file_info['folder'],
-                            'gcs_path': split_gcs_path,
-                            'pages': file_info['pages'],
-                            'page_count': file_info['page_count'],
-                            'chapter_name': file_info['chapter_name']
-                        })
-                        logger.info(f"Uploaded split file: {split_gcs_path}")
-                    else:
-                        logger.error(f"Failed to upload split file: {file_info['filename']}")
-                
-                logger.info(f"Split completed: {len(uploaded_files)} files uploaded")
-                
-                return jsonify({
-                    'status': 'success',
-                    'split_files': uploaded_files,
-                    'total_files': len(uploaded_files),
-                    'pdf_path': pdf_gcs_path,
-                    'analysis_path': analysis_gcs_path
-                })
-        
+            return jsonify({
+                'status': 'success',
+                'split_files': split_files,
+                'total_files': len(split_files),
+                'pdf_path': pdf_gcs_path
+            })
+            
         finally:
-            # Clean up temporary files
-            for temp_file in [temp_pdf_path, temp_json_path]:
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
-    
+            # Clean up temporary file
+            if os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
+                
     except BadRequest as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error in split_pdf: {str(e)}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/process', methods=['POST'])
 def process_pdf():
@@ -222,61 +218,61 @@ def process_pdf():
             raise BadRequest("No JSON data provided")
         
         pdf_gcs_path = data.get('pdf_path')
-        bucket_name = data.get('bucket_name', BUCKET_NAME)
-        
         if not pdf_gcs_path:
             raise BadRequest("pdf_path is required")
         
-        # Step 1: Analyze PDF
+        bucket_name = data.get('bucket_name', BUCKET_NAME)
+        
         logger.info(f"Starting complete processing for: {pdf_gcs_path}")
         
+        # Step 1: Analyze PDF
         analyze_data = {
             'pdf_path': pdf_gcs_path,
             'bucket_name': bucket_name
         }
         
-        # Call analyze endpoint internally
         analyze_response = analyze_pdf()
         if analyze_response[1] != 200:  # Check status code
             return analyze_response
         
         analyze_result = analyze_response[0].get_json()
-        analysis_gcs_path = analyze_result['analysis_gcs_path']
         
         # Step 2: Split PDF
         split_data = {
             'pdf_path': pdf_gcs_path,
-            'analysis_path': analysis_gcs_path,
+            'analysis_path': analyze_result['analysis_gcs_path'],
             'bucket_name': bucket_name
         }
         
-        # Call split endpoint internally
         split_response = split_pdf()
         if split_response[1] != 200:  # Check status code
             return split_response
         
         split_result = split_response[0].get_json()
         
-        logger.info(f"Complete processing finished for: {pdf_gcs_path}")
-        
+        # Combine results
         return jsonify({
             'status': 'success',
             'pdf_path': pdf_gcs_path,
             'analysis_result': analyze_result['analysis_result'],
-            'analysis_gcs_path': analysis_gcs_path,
+            'analysis_gcs_path': analyze_result['analysis_gcs_path'],
             'split_files': split_result['split_files'],
             'total_files': split_result['total_files']
         })
-    
+        
     except BadRequest as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error in process_pdf: {str(e)}")
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({'error': 'Bad request'}), 400
 
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
+    return jsonify({'error': 'Not found'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
