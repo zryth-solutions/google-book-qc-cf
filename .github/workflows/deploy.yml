@@ -87,5 +87,25 @@ jobs:
           REGION=${{ env.REGION }}
         flags: --service-account=${{ secrets.SERVICE_ACCOUNT }}
     
+    - name: Deploy GCP Workflow
+      run: |
+        echo "Deploying GCP Workflow..."
+        gcloud workflows deploy pdf-processing-workflow \
+          --source=workflows/pdf_processing_workflow.yaml \
+          --location=${{ env.REGION }} \
+          --project=${{ env.PROJECT_ID }}
+        echo "✅ Workflow deployed successfully!"
+    
+    - name: Update Workflow URLs
+      run: |
+        echo "Updating workflow URLs with actual service URL..."
+        python3 update_workflow_urls.py ${{ steps.deploy.outputs.url }}
+        echo "✅ Workflow URLs updated!"
+    
     - name: Show Output
-      run: echo ${{ steps.deploy.outputs.url }}
+      run: |
+        echo "🎉 Deployment Complete!"
+        echo "Cloud Run Service URL: ${{ steps.deploy.outputs.url }}"
+        echo "Workflow: pdf-processing-workflow"
+        echo "Project: ${{ env.PROJECT_ID }}"
+        echo "Region: ${{ env.REGION }}"
