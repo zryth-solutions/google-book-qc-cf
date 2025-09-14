@@ -199,7 +199,7 @@ def split_pdf():
             
             # Split PDF
             logger.info(f"Starting PDF splitting for: {pdf_filename}")
-            split_files = pdf_splitter.split_pdf_by_json(temp_pdf_path, analysis_data, bucket_name)
+            split_files = pdf_splitter.split_pdf_by_json(temp_pdf_path, analysis_data, bucket_name, bucket_manager)
             
             if not split_files:
                 return jsonify({
@@ -308,7 +308,7 @@ def _split_pdf_internal(pdf_gcs_path: str, analysis_gcs_path: str, bucket_name: 
             
             # Split PDF
             logger.info(f"Starting PDF splitting for: {pdf_filename}")
-            split_files = pdf_splitter.split_pdf_by_json(temp_pdf_path, analysis_data, bucket_name)
+            split_files = pdf_splitter.split_pdf_by_json(temp_pdf_path, analysis_data, bucket_name, bucket_manager)
             
             if not split_files:
                 return jsonify({

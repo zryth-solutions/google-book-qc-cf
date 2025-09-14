@@ -23,7 +23,8 @@ class PDFSplitter:
         self,
         pdf_path: str,
         analysis_data: Dict[str, Any],
-        output_dir: str
+        output_dir: str,
+        bucket_manager=None
     ) -> List[Dict[str, str]]:
         """
         Split PDF based on analysis JSON data
@@ -56,7 +57,7 @@ class PDFSplitter:
             
             for idx, chapter in enumerate(chapters, 1):
                 try:
-                    result = self._split_chapter(reader, chapter, question_dir, answer_dir)
+                    result = self._split_chapter(reader, chapter, question_dir, answer_dir, bucket_manager)
                     if result:
                         split_files.append(result)
                         logger.info(f"Split chapter {idx}: {result['filename']}")
@@ -76,7 +77,8 @@ class PDFSplitter:
         reader: PdfReader,
         chapter: Dict[str, Any],
         question_dir: str,
-        answer_dir: str
+        answer_dir: str,
+        bucket_manager=None
     ) -> Optional[Dict[str, str]]:
         """
         Split a single chapter from the PDF
@@ -142,10 +144,26 @@ class PDFSplitter:
             with open(output_path, 'wb') as output_file:
                 writer.write(output_file)
             
+            # Upload to GCS if bucket_manager is provided
+            gcs_path = None
+            if bucket_manager:
+                try:
+                    # Create GCS path
+                    gcs_filename = f"{pdf_folder}/{pdf_filename}"
+                    # Upload to GCS
+                    if bucket_manager.upload_file(output_path, gcs_filename):
+                        gcs_path = f"gs://{bucket_manager.bucket_name}/{gcs_filename}"
+                        logger.info(f"Uploaded {pdf_filename} to GCS: {gcs_path}")
+                    else:
+                        logger.warning(f"Failed to upload {pdf_filename} to GCS")
+                except Exception as e:
+                    logger.error(f"Error uploading {pdf_filename} to GCS: {str(e)}")
+            
             return {
                 'filename': pdf_filename,
                 'folder': pdf_folder,
                 'path': output_path,
+                'gcs_path': gcs_path,
                 'pages': f"{start_page}-{end_page}",
                 'page_count': pages_added,
                 'chapter_name': chapter_name
