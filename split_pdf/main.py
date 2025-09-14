@@ -87,6 +87,11 @@ def analyze_pdf():
         logger.info(f"Received data: {data}")
         logger.info(f"pdf_gcs_path type: {type(pdf_gcs_path)}, value: {pdf_gcs_path}")
         
+        # Handle nested pdf_path structure from workflow
+        if isinstance(pdf_gcs_path, dict) and 'pdf_path' in pdf_gcs_path:
+            pdf_gcs_path = pdf_gcs_path['pdf_path']
+            logger.info(f"Extracted nested pdf_path: {pdf_gcs_path}")
+        
         # Extract filename from GCS path
         pdf_filename = extract_filename_from_gcs_path(pdf_gcs_path)
         logger.info(f"Extracted filename: {pdf_filename} from {pdf_gcs_path}")
@@ -160,6 +165,13 @@ def split_pdf():
         
         if not pdf_gcs_path or not analysis_gcs_path:
             raise BadRequest("pdf_path and analysis_path are required")
+        
+        # Handle nested pdf_path structure from workflow
+        if isinstance(pdf_gcs_path, dict) and 'pdf_path' in pdf_gcs_path:
+            pdf_gcs_path = pdf_gcs_path['pdf_path']
+        
+        if isinstance(analysis_gcs_path, dict) and 'analysis_path' in analysis_gcs_path:
+            analysis_gcs_path = analysis_gcs_path['analysis_path']
         
         # Extract filenames from GCS paths
         pdf_filename = extract_filename_from_gcs_path(pdf_gcs_path)
@@ -338,6 +350,10 @@ def process_pdf():
             raise BadRequest("pdf_path is required")
         
         bucket_name = data.get('bucket_name', BUCKET_NAME)
+        
+        # Handle nested pdf_path structure from workflow
+        if isinstance(pdf_gcs_path, dict) and 'pdf_path' in pdf_gcs_path:
+            pdf_gcs_path = pdf_gcs_path['pdf_path']
         
         logger.info(f"Starting complete processing for: {pdf_gcs_path}")
         
