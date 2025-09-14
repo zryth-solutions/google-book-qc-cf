@@ -1,6 +1,3 @@
-# PDF Processing Workflow
-# This workflow orchestrates the PDF analysis and splitting pipeline
-
 main:
   params: [pdf_path]
   
@@ -26,7 +23,7 @@ main:
     # Step 2: Check if analysis was successful
     - check_analysis:
         switch:
-          - condition: ${analysis_result.status == "success"}
+          - condition: ${analysis_result.body.status == "success"}
             next: split_pdf
           - condition: true
             next: handle_analysis_error
@@ -40,14 +37,14 @@ main:
             Content-Type: "application/json"
           body:
             pdf_path: "${pdf_path}"
-            analysis_path: "${analysis_result.analysis_gcs_path}"
+            analysis_path: "${analysis_result.body.analysis_gcs_path}"
             bucket_name: "${bucket_name}"
         result: split_result
     
     # Step 4: Check if splitting was successful
     - check_split:
         switch:
-          - condition: ${split_result.status == "success"}
+          - condition: ${split_result.body.status == "success"}
             next: return_success
           - condition: true
             next: handle_split_error
@@ -56,28 +53,21 @@ main:
     - return_success:
         return:
           status: "success"
-          pdf_path: "${pdf_path}"
-          analysis_result: "${analysis_result.analysis_result}"
-          analysis_gcs_path: "${analysis_result.analysis_gcs_path}"
-          split_files: "${split_result.split_files}"
-          total_files: "${split_result.total_files}"
-          processing_time: "${sys.now()}"
+          message: "PDF processing completed successfully"
+          analysis_result: ${analysis_result}
+          split_result: ${split_result}
+          total_files: ${split_result.body.total_files}
     
-    # Error handling for analysis failure
+    # Step 6: Handle analysis error
     - handle_analysis_error:
         return:
           status: "error"
-          error_type: "analysis_failed"
-          error_message: "${analysis_result.error}"
-          pdf_path: "${pdf_path}"
-          processing_time: "${sys.now()}"
+          message: "PDF analysis failed"
+          error: ${analysis_result}
     
-    # Error handling for splitting failure
+    # Step 7: Handle split error
     - handle_split_error:
         return:
           status: "error"
-          error_type: "split_failed"
-          error_message: "${split_result.error}"
-          pdf_path: "${pdf_path}"
-          analysis_gcs_path: "${analysis_result.analysis_gcs_path}"
-          processing_time: "${sys.now()}"
+          message: "PDF splitting failed"
+          error: ${split_result}
