@@ -1,0 +1,76 @@
+# PDF Processing Microservice Configuration
+
+# GCP Configuration
+gcp:
+  project_id: "book-qc-cf"
+  region: "us-central1"
+  bucket_name: "book-qc-cf-pdf-storage"
+
+# Cloud Run Configuration
+cloud_run:
+  service_name: "pdf-processor"
+  image_uri: "us-central1-docker.pkg.dev/book-qc-cf/pdf-processor/pdf-processor:latest"
+  port: 8080
+  memory: "2Gi"
+  cpu: "2"
+  max_instances: 10
+  min_instances: 0
+  timeout: 600
+
+# Workflow Configuration
+workflow:
+  name: "pdf-processing-workflow"
+  file: "workflows/pdf_processing_workflow.yaml"
+
+# Environment Variables
+environment:
+  PROJECT_ID: "book-qc-cf"
+  BUCKET_NAME: "book-qc-cf-pdf-storage"
+  REGION: "us-central1"
+
+# GitHub Actions Configuration
+github_actions:
+  repository: "pdf-processor"
+  workflow_file: ".github/workflows/deploy.yml"
+
+# Docker Configuration
+docker:
+  base_image: "python:3.11-slim"
+  working_dir: "/app"
+  port: 8080
+
+# PDF Processing Configuration
+pdf_processing:
+  max_file_size_mb: 100
+  supported_formats: ["pdf"]
+  temp_dir: "/tmp/pdf_processing"
+  
+  # Analysis patterns
+  patterns:
+    - "Self Assessment Paper"
+    - "Practice Paper"
+    - "Question Paper"
+    - "Sample Question Paper"
+    - "Mock Test"
+    - "Test Paper"
+    - "SAP"
+    - "SQP"
+    - "PP"
+    - "Mind Map"
+    - "On tips"
+    - "Chapter"
+    - "Unit"
+    - "Part"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "/var/log/pdf_processor.log"
+
+# Health Check Configuration
+health_check:
+  endpoint: "/health"
+  interval: 30
+  timeout: 10
+  retries: 3

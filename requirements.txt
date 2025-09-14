@@ -1,0 +1,15 @@
+# Core dependencies
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# PDF processing
+PyMuPDF==1.23.8
+PyPDF2==3.0.1
+
+# Google Cloud dependencies
+google-cloud-storage==2.10.0
+google-cloud-run==0.10.0
+google-cloud-workflows==1.7.0
+
+# Additional utilities
+requests==2.31.0

@@ -1,0 +1,171 @@
+# PDF Processing Workflow
+# This workflow orchestrates the PDF analysis and splitting pipeline
+
+main:
+  params:
+    - pdf_path: ""  # GCS path to the PDF file
+    - bucket_name: ""  # GCS bucket name
+    - project_id: ""  # GCP project ID
+  
+  steps:
+    # Step 1: Analyze PDF
+    - analyze_pdf:
+        call: http.post
+        args:
+          url: "${env.PDF_PROCESSOR_URL}/analyze"
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${pdf_path}"
+            bucket_name: "${bucket_name}"
+        result: analysis_result
+    
+    # Step 2: Check if analysis was successful
+    - check_analysis:
+        switch:
+          - condition: ${analysis_result.status == "success"}
+            next: split_pdf
+          - condition: true
+            next: handle_analysis_error
+    
+    # Step 3: Split PDF based on analysis
+    - split_pdf:
+        call: http.post
+        args:
+          url: "${env.PDF_PROCESSOR_URL}/split"
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${pdf_path}"
+            analysis_path: "${analysis_result.analysis_gcs_path}"
+            bucket_name: "${bucket_name}"
+        result: split_result
+    
+    # Step 4: Check if splitting was successful
+    - check_split:
+        switch:
+          - condition: ${split_result.status == "success"}
+            next: return_success
+          - condition: true
+            next: handle_split_error
+    
+    # Step 5: Return success result
+    - return_success:
+        return:
+          status: "success"
+          pdf_path: "${pdf_path}"
+          analysis_result: "${analysis_result.analysis_result}"
+          analysis_gcs_path: "${analysis_result.analysis_gcs_path}"
+          split_files: "${split_result.split_files}"
+          total_files: "${split_result.total_files}"
+          processing_time: "${sys.now()}"
+    
+    # Error handling for analysis failure
+    - handle_analysis_error:
+        return:
+          status: "error"
+          error_type: "analysis_failed"
+          error_message: "${analysis_result.error}"
+          pdf_path: "${pdf_path}"
+          processing_time: "${sys.now()}"
+    
+    # Error handling for splitting failure
+    - handle_split_error:
+        return:
+          status: "error"
+          error_type: "split_failed"
+          error_message: "${split_result.error}"
+          pdf_path: "${pdf_path}"
+          analysis_gcs_path: "${analysis_result.analysis_gcs_path}"
+          processing_time: "${sys.now()}"
+
+# Alternative workflow for complete processing in one step
+complete_processing:
+  params:
+    - pdf_path: ""  # GCS path to the PDF file
+    - bucket_name: ""  # GCS bucket name
+    - project_id: ""  # GCP project ID
+  
+  steps:
+    # Single step: Complete processing (analyze + split)
+    - process_pdf:
+        call: http.post
+        args:
+          url: "${env.PDF_PROCESSOR_URL}/process"
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${pdf_path}"
+            bucket_name: "${bucket_name}"
+        result: process_result
+    
+    # Check if processing was successful
+    - check_processing:
+        switch:
+          - condition: ${process_result.status == "success"}
+            next: return_complete_success
+          - condition: true
+            next: handle_processing_error
+    
+    # Return success result
+    - return_complete_success:
+        return:
+          status: "success"
+          pdf_path: "${pdf_path}"
+          analysis_result: "${process_result.analysis_result}"
+          analysis_gcs_path: "${process_result.analysis_gcs_path}"
+          split_files: "${process_result.split_files}"
+          total_files: "${process_result.total_files}"
+          processing_time: "${sys.now()}"
+    
+    # Error handling
+    - handle_processing_error:
+        return:
+          status: "error"
+          error_type: "processing_failed"
+          error_message: "${process_result.error}"
+          pdf_path: "${pdf_path}"
+          processing_time: "${sys.now()}"
+
+# Batch processing workflow for multiple PDFs
+batch_processing:
+  params:
+    - pdf_paths: []  # List of GCS paths to PDF files
+    - bucket_name: ""  # GCS bucket name
+    - project_id: ""  # GCP project ID
+    - parallel_limit: 5  # Maximum number of parallel processing tasks
+  
+  steps:
+    # Process each PDF in parallel (with limit)
+    - process_pdfs:
+        parallel:
+          for:
+            value: pdf_path
+            in: ${pdf_paths}
+          limit: ${parallel_limit}
+        call: complete_processing
+        args:
+          pdf_path: "${pdf_path}"
+          bucket_name: "${bucket_name}"
+          project_id: "${project_id}"
+        result: batch_results
+    
+    # Collect results
+    - collect_results:
+        assign:
+          successful: ${batch_results[?(@.status == "success")]}
+          failed: ${batch_results[?(@.status == "error")]}
+          total_processed: ${len(batch_results)}
+          success_count: ${len(batch_results[?(@.status == "success")])}
+          failure_count: ${len(batch_results[?(@.status == "error")])}
+    
+    # Return batch results
+    - return_batch_results:
+        return:
+          status: "completed"
+          total_processed: "${total_processed}"
+          success_count: "${success_count}"
+          failure_count: "${failure_count}"
+          successful_results: "${successful}"
+          failed_results: "${failed}"
+          processing_time: "${sys.now()}"
