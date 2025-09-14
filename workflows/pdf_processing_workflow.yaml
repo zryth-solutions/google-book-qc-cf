@@ -3,16 +3,16 @@
 
 main:
   params:
-    - pdf_path: ""  # GCS path to the PDF file
-    - bucket_name: ""  # GCS bucket name
-    - project_id: ""  # GCP project ID
+    - pdf_path: ""  # GCS path to the PDF file (e.g., gs://book-qc-cf-pdf-storage/sample.pdf)
+    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
+    - project_id: "book-qc-cf"  # GCP project ID
   
   steps:
     # Step 1: Analyze PDF
     - analyze_pdf:
         call: http.post
         args:
-          url: "${env.PDF_PROCESSOR_URL}/analyze"
+          url: "https://pdf-processor-xxx.run.app/analyze"  # Will be updated after deployment
           headers:
             Content-Type: "application/json"
           body:
@@ -32,7 +32,7 @@ main:
     - split_pdf:
         call: http.post
         args:
-          url: "${env.PDF_PROCESSOR_URL}/split"
+          url: "https://pdf-processor-xxx.run.app/split"  # Will be updated after deployment
           headers:
             Content-Type: "application/json"
           body:
@@ -82,16 +82,16 @@ main:
 # Alternative workflow for complete processing in one step
 complete_processing:
   params:
-    - pdf_path: ""  # GCS path to the PDF file
-    - bucket_name: ""  # GCS bucket name
-    - project_id: ""  # GCP project ID
+    - pdf_path: ""  # GCS path to the PDF file (e.g., gs://book-qc-cf-pdf-storage/sample.pdf)
+    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
+    - project_id: "book-qc-cf"  # GCP project ID
   
   steps:
     # Single step: Complete processing (analyze + split)
     - process_pdf:
         call: http.post
         args:
-          url: "${env.PDF_PROCESSOR_URL}/process"
+          url: "https://pdf-processor-xxx.run.app/process"  # Will be updated after deployment
           headers:
             Content-Type: "application/json"
           body:
@@ -130,9 +130,9 @@ complete_processing:
 # Batch processing workflow for multiple PDFs
 batch_processing:
   params:
-    - pdf_paths: []  # List of GCS paths to PDF files
-    - bucket_name: ""  # GCS bucket name
-    - project_id: ""  # GCP project ID
+    - pdf_paths: []  # List of GCS paths to PDF files (e.g., ["gs://book-qc-cf-pdf-storage/file1.pdf", "gs://book-qc-cf-pdf-storage/file2.pdf"])
+    - bucket_name: "book-qc-cf-pdf-storage"  # GCS bucket name
+    - project_id: "book-qc-cf"  # GCP project ID
     - parallel_limit: 5  # Maximum number of parallel processing tasks
   
   steps:
