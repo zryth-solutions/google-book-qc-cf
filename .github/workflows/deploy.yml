@@ -81,11 +81,11 @@ jobs:
         service: ${{ env.SERVICE }}
         region: ${{ env.REGION }}
         image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
-        service_account: ${{ secrets.SERVICE_ACCOUNT }}
         env_vars: |
           PROJECT_ID=${{ env.PROJECT_ID }}
           BUCKET_NAME=book-qc-cf-pdf-storage
           REGION=${{ env.REGION }}
+        flags: --service-account=${{ secrets.SERVICE_ACCOUNT }}
     
     - name: Show Output
       run: echo ${{ steps.deploy.outputs.url }}
