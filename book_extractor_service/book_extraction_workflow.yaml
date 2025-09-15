@@ -7,9 +7,9 @@ main:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
-          - pdf_path: ${input.pdf_path}
-          - extraction_type: ${input.extraction_type or "questions"}
-          - subject: ${input.subject or "computer_applications"}
+          - pdf_path: ${input.input.pdf_path}
+          - extraction_type: ${input.input.extraction_type or "questions"}
+          - subject: ${input.input.subject or "computer_applications"}
     
     # Step 1: Extract questions from question paper
     - extract_questions:
@@ -87,9 +87,9 @@ process_both:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
-          - question_pdf_path: ${input.question_pdf_path}
-          - answer_pdf_path: ${input.answer_pdf_path}
-          - subject: ${input.subject or "computer_applications"}
+          - question_pdf_path: ${input.input.question_pdf_path}
+          - answer_pdf_path: ${input.input.answer_pdf_path}
+          - subject: ${input.input.subject or "computer_applications"}
     
     # Step 1: Extract questions from question paper
     - extract_questions:
