@@ -15,6 +15,7 @@
 - ✅ **Simplified PDF processing workflow** - Now uses single 'process' command for analyze + split
 - ✅ **Updated all workflow files** - Corrected API endpoints for reliable execution
 - ✅ **Fixed workflow syntax errors** - Changed to single input parameter (Google Cloud Workflows requirement)
+- ✅ **Fixed Cloud Run Jobs API format** - Switched to HTTP connector with correct args array format
 
 ### **GCP Services**
 - ✅ **Service Account**: `pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com` - Active

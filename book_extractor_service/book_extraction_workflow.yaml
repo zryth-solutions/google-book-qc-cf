@@ -5,14 +5,98 @@ main:
     # Set default values and extract parameters
     - set_defaults:
         assign:
-          - pdf_path: ${input.pdf_path}
-          - subject: ${input.subject}
+          - pdf_path: ${default(map.get(input, "pdf_path"), "")}
+          - folder_path: ${default(map.get(input, "folder_path"), "")}
+          - subject: ${default(map.get(input, "subject"), "computer_applications")}
+          - operation_type: ${default(map.get(input, "operation_type"), "single")}
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
           - region: "us-central1"
     
-    # Step 1: Extract questions using Cloud Run Job
-    - extract_questions_job:
+    # Route based on operation type
+    - route_operation:
+        switch:
+          - condition: ${operation_type == "folder"}
+            next: process_book_folder
+          - condition: ${operation_type == "single"}
+            next: process_single_pdf
+        next: invalid_operation
+    
+    # Handle invalid operation
+    - invalid_operation:
+        return:
+          status: "error"
+          message: "Invalid operation_type. Must be 'single' or 'folder'"
+    
+    # Process complete book folder
+    - process_book_folder:
+        call: http.post
+        args:
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
+          body:
+            overrides:
+              containerOverrides:
+                - args: ["process-book-folder", "--folder-path", folder_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
+        result: folder_job
+        next: wait_for_folder_completion
+    
+    # Wait for folder processing completion
+    - wait_for_folder_completion:
+        call: sys.sleep
+        args:
+          seconds: 120
+        next: return_folder_success
+    
+    # Return folder processing success
+    - return_folder_success:
+        return:
+          status: "success"
+          message: "Book folder processing completed successfully"
+          folder_path: ${folder_path}
+          subject: ${subject}
+          job_execution: ${folder_job}
+          bucket_name: ${bucket_name}
+    
+    # Process single PDF (original functionality)
+    - process_single_pdf:
+        # Step 1: Extract questions using Cloud Run Job
+        call: http.post
+        args:
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
+          body:
+            overrides:
+              containerOverrides:
+                - args: ["extract-questions", "--pdf-path", pdf_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
+        result: questions_job
+        next: wait_between_jobs
+    
+    # Step 2: Wait between jobs
+    - wait_between_jobs:
+        call: sys.sleep
+        args:
+          seconds: 30
+        next: extract_answers_job
+    
+    # Step 3: Extract answers using Cloud Run Job  
+    - extract_answers_job:
         call: http.post
         args:
           url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}

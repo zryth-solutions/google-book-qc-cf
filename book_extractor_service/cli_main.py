@@ -289,6 +289,281 @@ def process_folder_answers(folder_path: str, subject: str = "computer_applicatio
             'folder_path': folder_path
         }
 
+def process_book_folder_complete(folder_path: str, subject: str = 'computer_applications') -> Dict[str, Any]:
+    """
+    Process complete book folder structure:
+    - Process all PDFs in question_papers/ subfolder -> save to extracted_questions/
+    - Process all PDFs in answer_keys/ subfolder -> save to extracted_answers/
+    """
+    try:
+        logger.info(f"Starting complete book folder processing for: {folder_path}")
+        
+        # Ensure folder_path doesn't start with gs://
+        if folder_path.startswith('gs://'):
+            folder_path = folder_path.replace(f'gs://{BUCKET_NAME}/', '')
+        
+        # Define subfolder paths
+        question_papers_path = f"{folder_path}/question_papers"
+        answer_keys_path = f"{folder_path}/answer_keys"
+        
+        # Define output paths
+        extracted_questions_path = f"{folder_path}/extracted_questions"
+        extracted_answers_path = f"{folder_path}/extracted_answers"
+        
+        logger.info(f"Processing questions from: {question_papers_path}")
+        logger.info(f"Processing answers from: {answer_keys_path}")
+        logger.info(f"Output questions to: {extracted_questions_path}")
+        logger.info(f"Output answers to: {extracted_answers_path}")
+        
+        results = {}
+        
+        # Process question papers
+        try:
+            questions_result = process_folder_questions_with_output(question_papers_path, subject, extracted_questions_path)
+            results['questions'] = questions_result
+            logger.info(f"Question processing completed: {questions_result.get('successful_extractions', 0)} successful")
+        except Exception as e:
+            logger.error(f"Failed to process question papers: {str(e)}")
+            results['questions'] = {
+                'status': 'error',
+                'error': str(e),
+                'folder_path': question_papers_path
+            }
+        
+        # Process answer keys
+        try:
+            answers_result = process_folder_answers_with_output(answer_keys_path, subject, extracted_answers_path)
+            results['answers'] = answers_result
+            logger.info(f"Answer processing completed: {answers_result.get('successful_extractions', 0)} successful")
+        except Exception as e:
+            logger.error(f"Failed to process answer keys: {str(e)}")
+            results['answers'] = {
+                'status': 'error',
+                'error': str(e),
+                'folder_path': answer_keys_path
+            }
+        
+        # Calculate overall statistics
+        total_questions = results.get('questions', {}).get('successful_extractions', 0)
+        total_answers = results.get('answers', {}).get('successful_extractions', 0)
+        total_failed = (results.get('questions', {}).get('failed_extractions', 0) + 
+                       results.get('answers', {}).get('failed_extractions', 0))
+        
+        return {
+            'status': 'success',
+            'message': 'Complete book folder processing completed',
+            'folder_path': folder_path,
+            'subject': subject,
+            'total_questions_extracted': total_questions,
+            'total_answers_extracted': total_answers,
+            'total_failed': total_failed,
+            'extracted_questions_path': extracted_questions_path,
+            'extracted_answers_path': extracted_answers_path,
+            'results': results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in complete book folder processing: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'folder_path': folder_path
+        }
+
+def process_folder_questions_with_output(folder_path: str, subject: str, output_folder: str) -> Dict[str, Any]:
+    """Process folder questions and save to specific output folder"""
+    try:
+        # Get list of PDF files
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf')
+        
+        if not pdf_files:
+            return {
+                'status': 'error',
+                'message': f'No PDF files found in folder: {folder_path}'
+            }
+        
+        # Process each PDF file
+        results = []
+        successful_extractions = 0
+        failed_extractions = 0
+        
+        for pdf_file in pdf_files:
+            logger.info(f"Processing question paper: {pdf_file}")
+            try:
+                # Create full GCS path
+                pdf_gcs_path = f"gs://{BUCKET_NAME}/{pdf_file}"
+                
+                # Extract filename without extension for output naming
+                filename = pdf_file.split('/')[-1].replace('.pdf', '')
+                output_path = f"{output_folder}/{filename}_questions.json"
+                
+                # Process the PDF with custom output path
+                result = process_question_paper_with_output(pdf_gcs_path, subject, output_path)
+                result['pdf_file'] = pdf_file
+                result['output_path'] = output_path
+                results.append(result)
+                
+                if result['status'] == 'success':
+                    successful_extractions += 1
+                else:
+                    failed_extractions += 1
+                logger.info(f"Successfully processed question paper: {pdf_file}")
+                
+            except Exception as e:
+                logger.error(f"Failed to process question paper {pdf_file}: {str(e)}")
+                results.append({
+                    'pdf_file': pdf_file,
+                    'status': 'error',
+                    'error': str(e)
+                })
+                failed_extractions += 1
+        
+        return {
+            'status': 'success',
+            'folder_path': folder_path,
+            'output_folder': output_folder,
+            'subject': subject,
+            'total_files': len(pdf_files),
+            'successful_extractions': successful_extractions,
+            'failed_extractions': failed_extractions,
+            'results': results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in folder question extraction with output: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'folder_path': folder_path
+        }
+
+def process_folder_answers_with_output(folder_path: str, subject: str, output_folder: str) -> Dict[str, Any]:
+    """Process folder answers and save to specific output folder"""
+    try:
+        # Get list of PDF files
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf')
+        
+        if not pdf_files:
+            return {
+                'status': 'error',
+                'message': f'No PDF files found in folder: {folder_path}'
+            }
+        
+        # Process each PDF file
+        results = []
+        successful_extractions = 0
+        failed_extractions = 0
+        
+        for pdf_file in pdf_files:
+            logger.info(f"Processing answer key: {pdf_file}")
+            try:
+                # Create full GCS path
+                pdf_gcs_path = f"gs://{BUCKET_NAME}/{pdf_file}"
+                
+                # Extract filename without extension for output naming
+                filename = pdf_file.split('/')[-1].replace('.pdf', '')
+                output_path = f"{output_folder}/{filename}_answers.json"
+                
+                # Process the PDF with custom output path
+                result = process_answer_key_with_output(pdf_gcs_path, subject, output_path)
+                result['pdf_file'] = pdf_file
+                result['output_path'] = output_path
+                results.append(result)
+                
+                if result['status'] == 'success':
+                    successful_extractions += 1
+                else:
+                    failed_extractions += 1
+                logger.info(f"Successfully processed answer key: {pdf_file}")
+                
+            except Exception as e:
+                logger.error(f"Failed to process answer key {pdf_file}: {str(e)}")
+                results.append({
+                    'pdf_file': pdf_file,
+                    'status': 'error',
+                    'error': str(e)
+                })
+                failed_extractions += 1
+        
+        return {
+            'status': 'success',
+            'folder_path': folder_path,
+            'output_folder': output_folder,
+            'subject': subject,
+            'total_files': len(pdf_files),
+            'successful_extractions': successful_extractions,
+            'failed_extractions': failed_extractions,
+            'results': results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in folder answer extraction with output: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'folder_path': folder_path
+        }
+
+def process_question_paper_with_output(pdf_path: str, subject: str, output_path: str) -> Dict[str, Any]:
+    """Process question paper and save to specific output path"""
+    try:
+        # Create extractor
+        factory = SubjectExtractorFactory()
+        extractor = factory.create_extractor(subject)
+        
+        # Extract questions
+        questions = extractor.extract_questions(pdf_path)
+        
+        # Save to specified output path
+        bucket_manager.save_json_to_gcs(questions, output_path)
+        
+        return {
+            'status': 'success',
+            'message': 'Questions extracted successfully',
+            'pdf_path': pdf_path,
+            'subject': subject,
+            'output_path': output_path,
+            'question_count': len(questions) if isinstance(questions, list) else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing question paper with output: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'pdf_path': pdf_path
+        }
+
+def process_answer_key_with_output(pdf_path: str, subject: str, output_path: str) -> Dict[str, Any]:
+    """Process answer key and save to specific output path"""
+    try:
+        # Create extractor
+        factory = SubjectExtractorFactory()
+        extractor = factory.create_extractor(subject)
+        
+        # Extract answers
+        answers = extractor.extract_answers(pdf_path)
+        
+        # Save to specified output path
+        bucket_manager.save_json_to_gcs(answers, output_path)
+        
+        return {
+            'status': 'success',
+            'message': 'Answers extracted successfully',
+            'pdf_path': pdf_path,
+            'subject': subject,
+            'output_path': output_path,
+            'answer_count': len(answers) if isinstance(answers, list) else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing answer key with output: {str(e)}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'pdf_path': pdf_path
+        }
+
 def get_available_subjects() -> Dict[str, Any]:
     """Get list of available subjects"""
     try:
@@ -316,6 +591,7 @@ def main():
         'extract-all',
         'extract-folder-questions',
         'extract-folder-answers',
+        'process-book-folder',
         'get-subjects'
     ], help='Operation to perform')
     
@@ -364,6 +640,11 @@ def main():
             if not args.folder_path:
                 raise ValueError("--folder-path is required for extract-folder-answers")
             result = process_folder_answers(args.folder_path, args.subject)
+            
+        elif args.operation == 'process-book-folder':
+            if not args.folder_path:
+                raise ValueError("--folder-path is required for process-book-folder")
+            result = process_book_folder_complete(args.folder_path, args.subject)
             
         elif args.operation == 'get-subjects':
             result = get_available_subjects()
