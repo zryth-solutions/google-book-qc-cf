@@ -509,7 +509,7 @@ def process_question_paper_with_output(pdf_path: str, subject: str, output_path:
     try:
         # Create extractor
         factory = SubjectExtractorFactory()
-        extractor = factory.create_extractor(subject)
+        extractor = factory.get_extractor(subject)
         
         # Extract questions
         questions = extractor.extract_questions(pdf_path)
@@ -539,7 +539,7 @@ def process_answer_key_with_output(pdf_path: str, subject: str, output_path: str
     try:
         # Create extractor
         factory = SubjectExtractorFactory()
-        extractor = factory.create_extractor(subject)
+        extractor = factory.get_extractor(subject)
         
         # Extract answers
         answers = extractor.extract_answers(pdf_path)
