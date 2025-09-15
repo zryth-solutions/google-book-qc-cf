@@ -536,7 +536,7 @@ def process_question_paper_with_output(pdf_path: str, subject: str, output_path:
                 raise Exception("Question extraction failed")
             
             # Save to specified output path
-            bucket_manager.save_json_to_gcs(result, output_path)
+            bucket_manager.upload_json(result, output_path)
             
             return {
                 'status': 'success',
@@ -593,7 +593,7 @@ def process_answer_key_with_output(pdf_path: str, subject: str, output_path: str
                 raise Exception("Answer extraction failed")
             
             # Save to specified output path
-            bucket_manager.save_json_to_gcs(result, output_path)
+            bucket_manager.upload_json(result, output_path)
             
             return {
                 'status': 'success',
