@@ -1,75 +1,64 @@
 main:
-  params: [input]
+  params: [pdf_path, subject]
   
   steps:
-    # Set default values and extract parameters
+    # Set default values
     - set_defaults:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
           - region: "us-central1"
-          - pdf_path: ${input.input.pdf_path}
-          - extraction_type: "questions"
-          - subject: "computer_applications"
     
     # Step 1: Extract questions using Cloud Run Job
     - extract_questions_job:
-        call: googleapis.run.v1.namespaces.jobs.run
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-questions"
-                        - "--pdf-path"
-                        - "${pdf_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
+            overrides:
+              containerOverrides:
+              - args: 
+                - "extract-questions"
+                - "--pdf-path"
+                - "${pdf_path}"
+                - "--subject"
+                - "${subject}"
+                env:
+                - name: GOOGLE_CLOUD_PROJECT
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: VERTEX_AI_LOCATION
+                  value: "${region}"
         result: questions_job
     
-    # Step 2: Wait for questions job completion
-    - wait_for_questions:
+    # Step 2: Wait between jobs
+    - wait_between_jobs:
         call: sys.sleep
         args:
           seconds: 30
     
     # Step 3: Extract answers using Cloud Run Job  
     - extract_answers_job:
-        call: googleapis.run.v1.namespaces.jobs.run
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-answers"
-                        - "--pdf-path"
-                        - "${pdf_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
+            overrides:
+              containerOverrides:
+              - args: 
+                - "extract-answers"
+                - "--pdf-path"
+                - "${pdf_path}"
+                - "--subject"
+                - "${subject}"
+                env:
+                - name: GOOGLE_CLOUD_PROJECT
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: VERTEX_AI_LOCATION
+                  value: "${region}"
         result: answers_job
     
     # Step 4: Wait for answers job completion
@@ -89,89 +78,54 @@ main:
           answers_job: ${answers_job}
           bucket_name: ${bucket_name}
 
-# Workflow for processing both question paper and answer key
-process_both:
-  params: [input]
+# Workflow for processing folder of PDFs
+process_folder:
+  params: [folder_path, subject, extraction_type]
   
   steps:
-    # Set default values and extract parameters
+    # Set default values
     - set_defaults:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
           - region: "us-central1"
-          - question_pdf_path: ${input.input.question_pdf_path}
-          - answer_pdf_path: ${input.input.answer_pdf_path}
-          - subject: "computer_applications"
     
-    # Step 1: Extract questions from question paper
-    - extract_questions_job:
-        call: googleapis.run.v1.namespaces.jobs.run
+    # Execute folder processing job
+    - process_folder_job:
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-questions"
-                        - "--pdf-path"
-                        - "${question_pdf_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
-        result: questions_job
+            overrides:
+              containerOverrides:
+              - args: 
+                - "extract-folder-${extraction_type}"
+                - "--folder-path"
+                - "${folder_path}"
+                - "--subject"
+                - "${subject}"
+                env:
+                - name: GOOGLE_CLOUD_PROJECT
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: VERTEX_AI_LOCATION
+                  value: "${region}"
+        result: folder_job
     
-    # Step 2: Extract answers from answer key (parallel execution)
-    - extract_answers_job:
-        call: googleapis.run.v1.namespaces.jobs.run
-        args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
-          body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-answers"
-                        - "--pdf-path"
-                        - "${answer_pdf_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
-        result: answers_job
-    
-    # Step 3: Wait for both jobs completion
+    # Wait for completion
     - wait_for_completion:
         call: sys.sleep
         args:
-          seconds: 45
+          seconds: 60
     
-    # Step 4: Return success result
-    - return_success:
+    # Return success result
+    - return_folder_success:
         return:
           status: "success"
-          message: "Both question and answer extraction completed successfully using Cloud Run Jobs"
-          question_pdf_path: ${question_pdf_path}
-          answer_pdf_path: ${answer_pdf_path}
+          message: "Folder extraction completed successfully"
+          folder_path: ${folder_path}
           subject: ${subject}
-          questions_job: ${questions_job}
-          answers_job: ${answers_job}
+          extraction_type: ${extraction_type}
+          folder_job: ${folder_job}
           bucket_name: ${bucket_name}

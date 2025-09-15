@@ -9,98 +9,48 @@ main:
           - project_id: "book-qc-cf"
           - region: "us-central1"
     
-    # Step 1: Execute PDF Analysis Job
-    - analyze_pdf_job:
-        call: googleapis.run.v1.namespaces.jobs.run
+    # Execute complete PDF processing job (analyze + split in one command)
+    - process_pdf_job:
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/pdf-processor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "analyze"
-                        - "--pdf-path"
-                        - "${pdf_path}"
-                        - "--bucket-name"
-                        - "${bucket_name}"
-                        env:
-                        - name: PROJECT_ID
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: REGION
-                          value: "${region}"
-        result: analysis_job
+            overrides:
+              containerOverrides:
+              - args: 
+                - "process"
+                - "--pdf-path"
+                - "${pdf_path}"
+                - "--bucket-name"
+                - "${bucket_name}"
+                env:
+                - name: PROJECT_ID
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: REGION
+                  value: "${region}"
+        result: process_job
     
-    # Step 2: Wait for analysis job completion and get result
-    - wait_for_analysis:
+    # Wait for job completion
+    - wait_for_completion:
         call: sys.sleep
         args:
-          seconds: 10
-        next: get_analysis_result
+          seconds: 30
     
-    - get_analysis_result:
-        try:
-          call: googleapis.storage.v1.objects.get
-          args:
-            bucket: "${bucket_name}"
-            object: "${text.replace_all(text.split(pdf_path, '/')[size(text.split(pdf_path, '/')) - 1], '.pdf', '')}/analysis.json"
-            alt: "media"
-          result: analysis_data
-        except:
-          as: e
-          steps:
-            - analysis_failed:
-                return:
-                  status: "error"
-                  message: "PDF analysis failed or result not found"
-                  error: ${e}
-    
-    # Step 3: Execute PDF Split Job  
-    - split_pdf_job:
-        call: googleapis.run.v1.namespaces.jobs.run
+    # Check job execution status
+    - get_execution_status:
+        call: googleapis.run.v2.projects.locations.jobs.executions.get
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/pdf-processor-job"
-          body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "split"
-                        - "--pdf-path"
-                        - "${pdf_path}"
-                        - "--analysis-path"
-                        - "gs://${bucket_name}/${text.replace_all(text.split(pdf_path, '/')[size(text.split(pdf_path, '/')) - 1], '.pdf', '')}/analysis.json"
-                        - "--bucket-name"
-                        - "${bucket_name}"
-                        env:
-                        - name: PROJECT_ID
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: REGION
-                          value: "${region}"
-        result: split_job
+          name: ${process_job.name}
+        result: execution_status
     
-    # Step 4: Wait for split job completion
-    - wait_for_split:
-        call: sys.sleep
-        args:
-          seconds: 15
-    
-    # Step 5: Return success result
+    # Return success result
     - return_success:
         return:
           status: "success"
           message: "PDF processing completed successfully using Cloud Run Jobs"
           pdf_path: ${pdf_path}
-          analysis_job: ${analysis_job}
-          split_job: ${split_job}
+          job_execution: ${process_job}
+          execution_status: ${execution_status}
           bucket_name: ${bucket_name}

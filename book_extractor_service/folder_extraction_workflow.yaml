@@ -1,119 +1,102 @@
 main:
-  params: [input]
+  params: [folder_path, subject, extraction_type]
   
   steps:
-    # Set default values and extract parameters
+    # Set default values
     - set_defaults:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
-          - project_id: "book-qc-cf" 
+          - project_id: "book-qc-cf"
           - region: "us-central1"
-          - folder_path: ${input.input.folder_path}
-          - extraction_type: ${default(input.input.extraction_type, "questions")}
-          - subject: ${default(input.input.subject, "computer_applications")}
     
-    # Determine which extraction type to perform
-    - check_extraction_type:
+    # Validate extraction type
+    - validate_extraction_type:
         switch:
           - condition: ${extraction_type == "questions"}
-            next: extract_folder_questions
+            next: extract_questions_only
           - condition: ${extraction_type == "answers"}
-            next: extract_folder_answers
+            next: extract_answers_only
           - condition: ${extraction_type == "both"}
             next: extract_both_types
-          - condition: true
-            next: invalid_extraction_type
+        next: invalid_extraction_type
     
-    # Invalid extraction type error
+    # Handle invalid extraction type
     - invalid_extraction_type:
         return:
           status: "error"
-          message: "Invalid extraction type. Must be 'questions', 'answers', or 'both'"
-          extraction_type: ${extraction_type}
+          message: "Invalid extraction_type. Must be 'questions', 'answers', or 'both'"
     
-    # Extract questions from all PDFs in folder
-    - extract_folder_questions:
-        call: googleapis.run.v1.namespaces.jobs.run
+    # Extract questions only
+    - extract_questions_only:
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-folder-questions"
-                        - "--folder-path"
-                        - "${folder_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
+            overrides:
+              containerOverrides:
+              - args: 
+                - "extract-folder-questions"
+                - "--folder-path"
+                - "${folder_path}"
+                - "--subject"
+                - "${subject}"
+                env:
+                - name: GOOGLE_CLOUD_PROJECT
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: VERTEX_AI_LOCATION
+                  value: "${region}"
         result: questions_job
-        next: wait_and_return_questions
+        next: wait_and_return
     
-    # Extract answers from all PDFs in folder
-    - extract_folder_answers:
-        call: googleapis.run.v1.namespaces.jobs.run
+    # Extract answers only
+    - extract_answers_only:
+        call: googleapis.run.v2.projects.locations.jobs.run
         args:
           name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            spec:
-              template:
-                spec:
-                  template:
-                    spec:
-                      containers:
-                      - args: 
-                        - "extract-folder-answers"
-                        - "--folder-path"
-                        - "${folder_path}"
-                        - "--subject"
-                        - "${subject}"
-                        env:
-                        - name: GOOGLE_CLOUD_PROJECT
-                          value: "${project_id}"
-                        - name: BUCKET_NAME
-                          value: "${bucket_name}"
-                        - name: VERTEX_AI_LOCATION
-                          value: "${region}"
+            overrides:
+              containerOverrides:
+              - args: 
+                - "extract-folder-answers"
+                - "--folder-path"
+                - "${folder_path}"
+                - "--subject"
+                - "${subject}"
+                env:
+                - name: GOOGLE_CLOUD_PROJECT
+                  value: "${project_id}"
+                - name: BUCKET_NAME
+                  value: "${bucket_name}"
+                - name: VERTEX_AI_LOCATION
+                  value: "${region}"
         result: answers_job
-        next: wait_and_return_answers
+        next: wait_and_return
     
-    # Extract both questions and answers (sequential processing)
+    # Extract both questions and answers
     - extract_both_types:
         steps:
           - extract_questions_first:
-              call: googleapis.run.v1.namespaces.jobs.run
+              call: googleapis.run.v2.projects.locations.jobs.run
               args:
                 name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
                 body:
-                  spec:
-                    template:
-                      spec:
-                        template:
-                          spec:
-                            containers:
-                            - args: 
-                              - "extract-folder-questions"
-                              - "--folder-path"
-                              - "${folder_path}"
-                              - "--subject"
-                              - "${subject}"
-                              env:
-                              - name: GOOGLE_CLOUD_PROJECT
-                                value: "${project_id}"
-                              - name: BUCKET_NAME
-                                value: "${bucket_name}"
-                              - name: VERTEX_AI_LOCATION
-                                value: "${region}"
+                  overrides:
+                    containerOverrides:
+                    - args: 
+                      - "extract-folder-questions"
+                      - "--folder-path"
+                      - "${folder_path}"
+                      - "--subject"
+                      - "${subject}"
+                      env:
+                      - name: GOOGLE_CLOUD_PROJECT
+                        value: "${project_id}"
+                      - name: BUCKET_NAME
+                        value: "${bucket_name}"
+                      - name: VERTEX_AI_LOCATION
+                        value: "${region}"
               result: questions_job
           
           - wait_between_jobs:
@@ -122,80 +105,43 @@ main:
                 seconds: 60
           
           - extract_answers_second:
-              call: googleapis.run.v1.namespaces.jobs.run
+              call: googleapis.run.v2.projects.locations.jobs.run
               args:
                 name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
                 body:
-                  spec:
-                    template:
-                      spec:
-                        template:
-                          spec:
-                            containers:
-                            - args: 
-                              - "extract-folder-answers"
-                              - "--folder-path"
-                              - "${folder_path}"
-                              - "--subject"
-                              - "${subject}"
-                              env:
-                              - name: GOOGLE_CLOUD_PROJECT
-                                value: "${project_id}"
-                              - name: BUCKET_NAME
-                                value: "${bucket_name}"
-                              - name: VERTEX_AI_LOCATION
-                                value: "${region}"
+                  overrides:
+                    containerOverrides:
+                    - args: 
+                      - "extract-folder-answers"
+                      - "--folder-path"
+                      - "${folder_path}"
+                      - "--subject"
+                      - "${subject}"
+                      env:
+                      - name: GOOGLE_CLOUD_PROJECT
+                        value: "${project_id}"
+                      - name: BUCKET_NAME
+                        value: "${bucket_name}"
+                      - name: VERTEX_AI_LOCATION
+                        value: "${region}"
               result: answers_job
-        next: wait_and_return_both
+        next: wait_and_return
     
-    # Wait and return results for questions only
-    - wait_and_return_questions:
+    # Wait for completion and return result
+    - wait_and_return:
         call: sys.sleep
         args:
-          seconds: 120  # Longer wait for folder processing
-        next: return_questions_success
+          seconds: 30
+        next: return_success
     
-    - return_questions_success:
+    # Return success result
+    - return_success:
         return:
           status: "success"
-          message: "Folder questions extraction completed successfully using Cloud Run Jobs"
-          extraction_type: "questions"
+          message: "Folder extraction completed successfully"
           folder_path: ${folder_path}
           subject: ${subject}
-          job_result: ${questions_job}
-          bucket_name: ${bucket_name}
-    
-    # Wait and return results for answers only
-    - wait_and_return_answers:
-        call: sys.sleep
-        args:
-          seconds: 120  # Longer wait for folder processing
-        next: return_answers_success
-    
-    - return_answers_success:
-        return:
-          status: "success"
-          message: "Folder answers extraction completed successfully using Cloud Run Jobs"
-          extraction_type: "answers"
-          folder_path: ${folder_path}
-          subject: ${subject}
-          job_result: ${answers_job}
-          bucket_name: ${bucket_name}
-    
-    # Wait and return results for both
-    - wait_and_return_both:
-        call: sys.sleep
-        args:
-          seconds: 180  # Even longer wait for both extractions
-        next: return_both_success
-    
-    - return_both_success:
-        return:
-          status: "success"
-          message: "Folder extraction for both questions and answers completed successfully using Cloud Run Jobs"
-          extraction_type: "both"
-          folder_path: ${folder_path}
-          subject: ${subject}
-          questions_job: ${questions_job}
-          answers_job: ${answers_job}
+          extraction_type: ${extraction_type}
+          questions_job: ${default(map.get(sys.get_env(), "questions_job"), null)}
+          answers_job: ${default(map.get(sys.get_env(), "answers_job"), null)}
           bucket_name: ${bucket_name}
