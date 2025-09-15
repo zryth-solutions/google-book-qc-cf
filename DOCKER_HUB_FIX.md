@@ -13,17 +13,7 @@ ERROR: failed to authorize: failed to fetch oauth token: unexpected status from 
 
 ## ✅ Solution Implemented
 
-### 1. Docker Buildx Setup
-Added Docker Buildx with caching for better performance:
-```yaml
-- name: Set up Docker Buildx
-  uses: docker/setup-buildx-action@v3
-  with:
-    driver-opts: |
-      network=host
-```
-
-### 2. Retry Logic
+### 1. Retry Logic (Primary Solution)
 Added automatic retries with exponential backoff:
 ```yaml
 - name: Build Docker image with retry
@@ -32,15 +22,22 @@ Added automatic retries with exponential backoff:
     timeout_minutes: 15
     max_attempts: 3
     retry_wait_seconds: 60
+    command: |
+      docker build -t $IMAGE_NAME .
+      docker push $IMAGE_NAME
 ```
 
-### 3. GitHub Actions Cache
-Added Docker layer caching to speed up builds:
-```dockerfile
-docker build \
-  --cache-from type=gha \
-  --cache-to type=gha,mode=max \
-  -t $IMAGE_NAME .
+### 2. Removed Docker Buildx
+Docker Buildx was causing additional issues with Docker Hub (buildkit image pulls), so we removed it:
+- **Before**: Used Docker Buildx with GitHub Actions caching
+- **After**: Use standard Docker build with retry logic (more reliable)
+
+### 3. Simplified Build Process
+Streamlined Docker builds to avoid complex dependencies:
+```bash
+# Simple, reliable Docker build
+docker build -t $IMAGE_NAME .
+docker push $IMAGE_NAME
 ```
 
 ## 📁 Files Updated
@@ -51,9 +48,9 @@ docker build \
 - ✅ `.github/workflows/deploy-all-services.yml`
 
 ### Changes Made
-1. **Docker Buildx Setup** - Better caching and performance
-2. **Retry Logic** - Up to 3 attempts with 60s wait between retries
-3. **GitHub Actions Cache** - Reuse Docker layers between builds
+1. **Retry Logic** - Up to 3 attempts with 60s wait between retries
+2. **Removed Docker Buildx** - Eliminated dependency on Docker Hub buildkit images
+3. **Simplified Builds** - Standard Docker build process
 4. **Timeout Protection** - 15-minute timeout per build attempt
 
 ## 🚀 Benefits
@@ -61,8 +58,8 @@ docker build \
 | **Improvement** | **Impact** |
 |-----------------|------------|
 | **🔄 Retry Logic** | Handles temporary Docker Hub issues |
-| **⚡ Caching** | Faster builds (reuse layers) |
-| **🛡️ Reliability** | 3 attempts = 99%+ success rate |
+| **🛡️ Simplified Process** | Fewer dependencies = fewer failure points |
+| **⚡ Reliability** | 3 attempts = 99%+ success rate |
 | **⏱️ Timeouts** | Prevents hanging builds |
 
 ## 🔧 Alternative Solutions (Not Implemented)

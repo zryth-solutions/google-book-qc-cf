@@ -39,12 +39,6 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with:
-        driver-opts: |
-          network=host
-
     - name: Configure Docker for Artifact Registry
       run: gcloud auth configure-docker $REGION-docker.pkg.dev
 
@@ -56,8 +50,6 @@ jobs:
         retry_wait_seconds: 60
         command: |
           docker build \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
             -t $REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA \
             -f split_pdf_service/Dockerfile .
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA
@@ -109,12 +101,6 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with:
-        driver-opts: |
-          network=host
-
     - name: Configure Docker for Artifact Registry
       run: gcloud auth configure-docker $REGION-docker.pkg.dev
 
@@ -126,8 +112,6 @@ jobs:
         retry_wait_seconds: 60
         command: |
           docker build \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
             -t $REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA \
             -f book_extractor_service/Dockerfile .
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA

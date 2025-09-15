@@ -61,12 +61,6 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
     
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with:
-        driver-opts: |
-          network=host
-
     - name: Configure Docker to use gcloud as a credential helper
       run: |
         gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev
@@ -80,8 +74,6 @@ jobs:
         command: |
           # Build the Docker image from split_pdf_service directory
           docker build \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
             -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
             -f split_pdf_service/Dockerfile .
           
