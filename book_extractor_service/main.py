@@ -34,7 +34,11 @@ bucket_manager = BucketManager(BUCKET_NAME, PROJECT_ID)
 def extract_filename_from_gcs_path(gcs_path: str) -> str:
     """Extract filename from GCS path"""
     if gcs_path.startswith('gs://'):
-        return gcs_path.split('/')[-1]
+        # Remove gs://bucket-name/ prefix to get the relative path
+        parts = gcs_path.split('/', 3)
+        if len(parts) >= 4:
+            return parts[3]  # Return the relative path (e.g., question_papers/SQP-2.pdf)
+        return gcs_path.split('/')[-1]  # Fallback to just filename
     return gcs_path
 
 def process_question_paper(pdf_gcs_path: str, subject: str = "computer_applications") -> Dict[str, Any]:
