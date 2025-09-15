@@ -24,7 +24,8 @@ class PDFSplitter:
         pdf_path: str,
         analysis_data: Dict[str, Any],
         output_dir: str,
-        bucket_manager=None
+        bucket_manager=None,
+        pdf_folder_name: str = None
     ) -> List[Dict[str, str]]:
         """
         Split PDF based on analysis JSON data
@@ -33,6 +34,8 @@ class PDFSplitter:
             pdf_path: Path to the source PDF file
             analysis_data: Analysis data containing chapter information
             output_dir: Directory to save split PDFs
+            bucket_manager: GCS bucket manager
+            pdf_folder_name: Name for the PDF folder (defaults to filename without extension)
             
         Returns:
             List of dictionaries with split file information
@@ -41,9 +44,14 @@ class PDFSplitter:
             if not os.path.exists(pdf_path):
                 raise FileNotFoundError(f"PDF file not found: {pdf_path}")
             
-            # Create output directories
-            question_dir = os.path.join(output_dir, 'question_papers')
-            answer_dir = os.path.join(output_dir, 'answer_keys')
+            # Determine folder name
+            if pdf_folder_name is None:
+                pdf_folder_name = os.path.splitext(os.path.basename(pdf_path))[0]
+            
+            # Create output directories within the PDF-named folder
+            base_pdf_dir = os.path.join(output_dir, pdf_folder_name)
+            question_dir = os.path.join(base_pdf_dir, 'question_papers')
+            answer_dir = os.path.join(base_pdf_dir, 'answer_keys')
             
             os.makedirs(question_dir, exist_ok=True)
             os.makedirs(answer_dir, exist_ok=True)
@@ -57,7 +65,7 @@ class PDFSplitter:
             
             for idx, chapter in enumerate(chapters, 1):
                 try:
-                    result = self._split_chapter(reader, chapter, question_dir, answer_dir, bucket_manager)
+                    result = self._split_chapter(reader, chapter, question_dir, answer_dir, bucket_manager, pdf_folder_name)
                     if result:
                         split_files.append(result)
                         logger.info(f"Split chapter {idx}: {result['filename']}")
@@ -78,7 +86,8 @@ class PDFSplitter:
         chapter: Dict[str, Any],
         question_dir: str,
         answer_dir: str,
-        bucket_manager=None
+        bucket_manager=None,
+        pdf_folder_name: str = None
     ) -> Optional[Dict[str, str]]:
         """
         Split a single chapter from the PDF
@@ -88,6 +97,8 @@ class PDFSplitter:
             chapter: Chapter information from analysis
             question_dir: Directory for question papers
             answer_dir: Directory for answer keys
+            bucket_manager: GCS bucket manager
+            pdf_folder_name: Name of the PDF folder for GCS organization
             
         Returns:
             Dictionary with split file information or None if failed
@@ -148,8 +159,12 @@ class PDFSplitter:
             gcs_path = None
             if bucket_manager:
                 try:
-                    # Create GCS path
-                    gcs_filename = f"{pdf_folder}/{pdf_filename}"
+                    # Create GCS path within the PDF folder structure
+                    if pdf_folder_name:
+                        gcs_filename = f"{pdf_folder_name}/{pdf_folder}/{pdf_filename}"
+                    else:
+                        gcs_filename = f"{pdf_folder}/{pdf_filename}"
+                    
                     # Upload to GCS
                     if bucket_manager.upload_file(output_path, gcs_filename):
                         gcs_path = f"gs://{bucket_manager.bucket_name}/{gcs_filename}"

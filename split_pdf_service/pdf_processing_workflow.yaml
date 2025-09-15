@@ -7,67 +7,100 @@ main:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
+          - region: "us-central1"
     
-    # Step 1: Analyze PDF
-    - analyze_pdf:
-        call: http.post
+    # Step 1: Execute PDF Analysis Job
+    - analyze_pdf_job:
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://pdf-processor-3b2xvx4raq-uc.a.run.app/analyze"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/pdf-processor-job"
           body:
-            pdf_path: "${pdf_path}"
-            bucket_name: "${bucket_name}"
-        result: analysis_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "analyze"
+                        - "--pdf-path"
+                        - "${pdf_path}"
+                        - "--bucket-name"
+                        - "${bucket_name}"
+                        env:
+                        - name: PROJECT_ID
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: REGION
+                          value: "${region}"
+        result: analysis_job
     
-    # Step 2: Check if analysis was successful
-    - check_analysis:
-        switch:
-          - condition: ${analysis_result.body.status == "success"}
-            next: split_pdf
-          - condition: true
-            next: handle_analysis_error
-    
-    # Step 3: Split PDF based on analysis
-    - split_pdf:
-        call: http.post
+    # Step 2: Wait for analysis job completion and get result
+    - wait_for_analysis:
+        call: sys.sleep
         args:
-          url: "https://pdf-processor-3b2xvx4raq-uc.a.run.app/split"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
-          body:
-            pdf_path: "${pdf_path}"
-            analysis_path: "${analysis_result.body.analysis_gcs_path}"
-            bucket_name: "${bucket_name}"
-        result: split_result
+          seconds: 10
+        next: get_analysis_result
     
-    # Step 4: Check if splitting was successful
-    - check_split:
-        switch:
-          - condition: ${split_result.body.status == "success"}
-            next: return_success
-          - condition: true
-            next: handle_split_error
+    - get_analysis_result:
+        try:
+          call: googleapis.storage.v1.objects.get
+          args:
+            bucket: "${bucket_name}"
+            object: "${text.replace_all(text.split(pdf_path, '/')[size(text.split(pdf_path, '/')) - 1], '.pdf', '')}/analysis.json"
+            alt: "media"
+          result: analysis_data
+        except:
+          as: e
+          steps:
+            - analysis_failed:
+                return:
+                  status: "error"
+                  message: "PDF analysis failed or result not found"
+                  error: ${e}
+    
+    # Step 3: Execute PDF Split Job  
+    - split_pdf_job:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: "projects/${project_id}/locations/${region}/jobs/pdf-processor-job"
+          body:
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "split"
+                        - "--pdf-path"
+                        - "${pdf_path}"
+                        - "--analysis-path"
+                        - "gs://${bucket_name}/${text.replace_all(text.split(pdf_path, '/')[size(text.split(pdf_path, '/')) - 1], '.pdf', '')}/analysis.json"
+                        - "--bucket-name"
+                        - "${bucket_name}"
+                        env:
+                        - name: PROJECT_ID
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: REGION
+                          value: "${region}"
+        result: split_job
+    
+    # Step 4: Wait for split job completion
+    - wait_for_split:
+        call: sys.sleep
+        args:
+          seconds: 15
     
     # Step 5: Return success result
     - return_success:
         return:
           status: "success"
-          message: "PDF processing completed successfully"
-          analysis_result: ${analysis_result}
-          split_result: ${split_result}
-          total_files: ${split_result.body.total_files}
-    
-    # Step 6: Handle analysis error
-    - handle_analysis_error:
-        return:
-          status: "error"
-          message: "PDF analysis failed"
-          error: ${analysis_result}
-    
-    # Step 7: Handle split error
-    - handle_split_error:
-        return:
-          status: "error"
-          message: "PDF splitting failed"
-          error: ${split_result}
+          message: "PDF processing completed successfully using Cloud Run Jobs"
+          pdf_path: ${pdf_path}
+          analysis_job: ${analysis_job}
+          split_job: ${split_job}
+          bucket_name: ${bucket_name}

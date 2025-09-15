@@ -6,33 +6,14 @@ main:
     - set_defaults:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
-          - project_id: "book-qc-cf"
+          - project_id: "book-qc-cf" 
+          - region: "us-central1"
           - folder_path: ${input.input.folder_path}
           - extraction_type: ${default(input.input.extraction_type, "questions")}
           - subject: ${default(input.input.subject, "computer_applications")}
     
-    # Step 1: List files in folder
-    - list_files:
-        call: http.post
-        args:
-          url: "https://book-extractor-xxx.run.app/list-folder-files"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
-          body:
-            folder_path: "${folder_path}"
-            file_extension: ".pdf"
-        result: file_list_result
-    
-    # Step 2: Check if files were found
-    - check_files:
-        switch:
-          - condition: ${file_list_result.body.status == "success" and file_list_result.body.total_files > 0}
-            next: determine_extraction_type
-          - condition: true
-            next: handle_no_files_error
-    
-    # Step 3: Determine extraction type and process accordingly
-    - determine_extraction_type:
+    # Determine which extraction type to perform
+    - check_extraction_type:
         switch:
           - condition: ${extraction_type == "questions"}
             next: extract_folder_questions
@@ -41,159 +22,180 @@ main:
           - condition: ${extraction_type == "both"}
             next: extract_both_types
           - condition: true
-            next: handle_invalid_extraction_type
+            next: invalid_extraction_type
+    
+    # Invalid extraction type error
+    - invalid_extraction_type:
+        return:
+          status: "error"
+          message: "Invalid extraction type. Must be 'questions', 'answers', or 'both'"
+          extraction_type: ${extraction_type}
     
     # Extract questions from all PDFs in folder
     - extract_folder_questions:
-        call: http.post
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://book-extractor-xxx.run.app/extract-folder-questions"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            folder_path: "${folder_path}"
-            subject: "${subject}"
-        result: questions_result
-        next: check_questions_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-folder-questions"
+                        - "--folder-path"
+                        - "${folder_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: questions_job
+        next: wait_and_return_questions
     
     # Extract answers from all PDFs in folder
     - extract_folder_answers:
-        call: http.post
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://book-extractor-xxx.run.app/extract-folder-answers"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            folder_path: "${folder_path}"
-            subject: "${subject}"
-        result: answers_result
-        next: check_answers_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-folder-answers"
+                        - "--folder-path"
+                        - "${folder_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: answers_job
+        next: wait_and_return_answers
     
     # Extract both questions and answers (sequential processing)
     - extract_both_types:
         steps:
           - extract_questions_first:
-              call: http.post
+              call: googleapis.run.v1.namespaces.jobs.run
               args:
-                url: "https://book-extractor-xxx.run.app/extract-folder-questions"  # Will be updated after deployment
-                headers:
-                  Content-Type: "application/json"
+                name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
                 body:
-                  folder_path: "${folder_path}"
-                  subject: "${subject}"
-              result: questions_result
+                  spec:
+                    template:
+                      spec:
+                        template:
+                          spec:
+                            containers:
+                            - args: 
+                              - "extract-folder-questions"
+                              - "--folder-path"
+                              - "${folder_path}"
+                              - "--subject"
+                              - "${subject}"
+                              env:
+                              - name: GOOGLE_CLOUD_PROJECT
+                                value: "${project_id}"
+                              - name: BUCKET_NAME
+                                value: "${bucket_name}"
+                              - name: VERTEX_AI_LOCATION
+                                value: "${region}"
+              result: questions_job
+          
+          - wait_between_jobs:
+              call: sys.sleep
+              args:
+                seconds: 60
           
           - extract_answers_second:
-              call: http.post
+              call: googleapis.run.v1.namespaces.jobs.run
               args:
-                url: "https://book-extractor-xxx.run.app/extract-folder-answers"  # Will be updated after deployment
-                headers:
-                  Content-Type: "application/json"
+                name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
                 body:
-                  folder_path: "${folder_path}"
-                  subject: "${subject}"
-              result: answers_result
-        next: check_both_results
+                  spec:
+                    template:
+                      spec:
+                        template:
+                          spec:
+                            containers:
+                            - args: 
+                              - "extract-folder-answers"
+                              - "--folder-path"
+                              - "${folder_path}"
+                              - "--subject"
+                              - "${subject}"
+                              env:
+                              - name: GOOGLE_CLOUD_PROJECT
+                                value: "${project_id}"
+                              - name: BUCKET_NAME
+                                value: "${bucket_name}"
+                              - name: VERTEX_AI_LOCATION
+                                value: "${region}"
+              result: answers_job
+        next: wait_and_return_both
     
-    # Check questions extraction result
-    - check_questions_result:
-        switch:
-          - condition: ${questions_result.body.status == "success"}
-            next: return_questions_success
-          - condition: true
-            next: handle_questions_error
+    # Wait and return results for questions only
+    - wait_and_return_questions:
+        call: sys.sleep
+        args:
+          seconds: 120  # Longer wait for folder processing
+        next: return_questions_success
     
-    # Check answers extraction result
-    - check_answers_result:
-        switch:
-          - condition: ${answers_result.body.status == "success"}
-            next: return_answers_success
-          - condition: true
-            next: handle_answers_error
-    
-    # Check both extraction results
-    - check_both_results:
-        switch:
-          - condition: ${questions_result.body.status == "success"}
-            next: check_answers_success
-          - condition: true
-            next: handle_questions_error
-    
-    - check_answers_success:
-        switch:
-          - condition: ${answers_result.body.status == "success"}
-            next: return_both_success
-          - condition: true
-            next: handle_answers_error
-    
-    # Success returns
     - return_questions_success:
         return:
           status: "success"
-          message: "Folder question extraction completed successfully"
+          message: "Folder questions extraction completed successfully using Cloud Run Jobs"
           extraction_type: "questions"
-          folder_path: "${folder_path}"
-          subject: "${subject}"
-          file_count: ${file_list_result.body.total_files}
-          successful_extractions: ${questions_result.body.successful_extractions}
-          failed_extractions: ${questions_result.body.failed_extractions}
-          questions_result: ${questions_result.body}
+          folder_path: ${folder_path}
+          subject: ${subject}
+          job_result: ${questions_job}
+          bucket_name: ${bucket_name}
+    
+    # Wait and return results for answers only
+    - wait_and_return_answers:
+        call: sys.sleep
+        args:
+          seconds: 120  # Longer wait for folder processing
+        next: return_answers_success
     
     - return_answers_success:
         return:
           status: "success"
-          message: "Folder answer extraction completed successfully"
+          message: "Folder answers extraction completed successfully using Cloud Run Jobs"
           extraction_type: "answers"
-          folder_path: "${folder_path}"
-          subject: "${subject}"
-          file_count: ${file_list_result.body.total_files}
-          successful_extractions: ${answers_result.body.successful_extractions}
-          failed_extractions: ${answers_result.body.failed_extractions}
-          answers_result: ${answers_result.body}
+          folder_path: ${folder_path}
+          subject: ${subject}
+          job_result: ${answers_job}
+          bucket_name: ${bucket_name}
+    
+    # Wait and return results for both
+    - wait_and_return_both:
+        call: sys.sleep
+        args:
+          seconds: 180  # Even longer wait for both extractions
+        next: return_both_success
     
     - return_both_success:
         return:
           status: "success"
-          message: "Folder extraction (both questions and answers) completed successfully"
+          message: "Folder extraction for both questions and answers completed successfully using Cloud Run Jobs"
           extraction_type: "both"
-          folder_path: "${folder_path}"
-          subject: "${subject}"
-          file_count: ${file_list_result.body.total_files}
-          questions_successful: ${questions_result.body.successful_extractions}
-          questions_failed: ${questions_result.body.failed_extractions}
-          answers_successful: ${answers_result.body.successful_extractions}
-          answers_failed: ${answers_result.body.failed_extractions}
-          questions_result: ${questions_result.body}
-          answers_result: ${answers_result.body}
-    
-    # Error handlers
-    - handle_no_files_error:
-        return:
-          status: "error"
-          message: ${"No PDF files found in folder: " + folder_path}
-          folder_path: "${folder_path}"
-          file_list_result: ${file_list_result.body}
-    
-    - handle_invalid_extraction_type:
-        return:
-          status: "error"
-          message: ${"Invalid extraction_type: " + extraction_type + ". Must be 'questions', 'answers', or 'both'"}
-          extraction_type: "${extraction_type}"
-    
-    - handle_questions_error:
-        return:
-          status: "error"
-          message: "Question extraction failed"
-          extraction_type: "questions"
-          folder_path: "${folder_path}"
-          subject: "${subject}"
-          questions_result: ${questions_result.body}
-    
-    - handle_answers_error:
-        return:
-          status: "error"
-          message: "Answer extraction failed"
-          extraction_type: "answers"
-          folder_path: "${folder_path}"
-          subject: "${subject}"
-          answers_result: ${answers_result.body}
+          folder_path: ${folder_path}
+          subject: ${subject}
+          questions_job: ${questions_job}
+          answers_job: ${answers_job}
+          bucket_name: ${bucket_name}

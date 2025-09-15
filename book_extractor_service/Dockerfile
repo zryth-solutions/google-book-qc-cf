@@ -32,14 +32,6 @@ RUN mkdir -p /tmp/pdf_processing
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PORT=8080
 
-# Expose port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# Run the application
-CMD ["python", "main.py"]
+# Run the CLI application
+ENTRYPOINT ["python", "cli_main.py"]

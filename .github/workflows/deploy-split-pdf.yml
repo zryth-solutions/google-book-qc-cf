@@ -77,18 +77,26 @@ jobs:
         docker tag $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
         docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
     
-    - name: Deploy to Cloud Run
+    - name: Create/Update Cloud Run Job
       id: deploy
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: ${{ env.SERVICE }}
-        region: ${{ env.REGION }}
-        image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}
-        env_vars: |
-          PROJECT_ID=${{ env.PROJECT_ID }}
-          BUCKET_NAME=book-qc-cf-pdf-storage
-          REGION=${{ env.REGION }}
-        flags: --service-account=${{ secrets.SERVICE_ACCOUNT }}
+      run: |
+        # Create or update Cloud Run Job
+        gcloud run jobs replace --image=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=${{ secrets.SERVICE_ACCOUNT }} \
+          --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
+          --max-retries=3 \
+          --parallelism=5 \
+          --task-count=1 \
+          $SERVICE-job || \
+        gcloud run jobs create $SERVICE-job \
+          --image=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=${{ secrets.SERVICE_ACCOUNT }} \
+          --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
+          --max-retries=3 \
+          --parallelism=5 \
+          --task-count=1
     
     - name: Deploy GCP Workflow
       run: |
@@ -99,16 +107,10 @@ jobs:
           --project=${{ env.PROJECT_ID }}
         echo "✅ Workflow deployed successfully!"
     
-    - name: Update Workflow URLs
-      run: |
-        echo "Updating workflow URLs with actual service URL..."
-        python3 split_pdf_service/update_workflow_urls.py ${{ steps.deploy.outputs.url }}
-        echo "✅ Workflow URLs updated!"
-    
     - name: Show Output
       run: |
         echo "🎉 Deployment Complete!"
-        echo "Cloud Run Service URL: ${{ steps.deploy.outputs.url }}"
+        echo "Cloud Run Job: ${{ env.SERVICE }}-job"
         echo "Workflow: pdf-processing-workflow"
         echo "Project: ${{ env.PROJECT_ID }}"
         echo "Region: ${{ env.REGION }}"

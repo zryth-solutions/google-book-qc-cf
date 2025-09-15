@@ -7,75 +7,87 @@ main:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
+          - region: "us-central1"
           - pdf_path: ${input.input.pdf_path}
           - extraction_type: "questions"
           - subject: "computer_applications"
     
-    # Step 1: Extract questions from question paper
-    - extract_questions:
-        call: http.post
+    # Step 1: Extract questions using Cloud Run Job
+    - extract_questions_job:
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://book-extractor-xxx.run.app/extract-questions"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            pdf_path: "${pdf_path}"
-            bucket_name: "${bucket_name}"
-            subject: "${subject}"
-        result: questions_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-questions"
+                        - "--pdf-path"
+                        - "${pdf_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: questions_job
     
-    # Step 2: Check if question extraction was successful
-    - check_questions:
-        switch:
-          - condition: ${questions_result.body.status == "success"}
-            next: extract_answers
-          - condition: true
-            next: handle_questions_error
-    
-    # Step 3: Extract answers from answer key (if available)
-    - extract_answers:
-        call: http.post
+    # Step 2: Wait for questions job completion
+    - wait_for_questions:
+        call: sys.sleep
         args:
-          url: "https://book-extractor-xxx.run.app/extract-answers"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
-          body:
-            pdf_path: "${pdf_path}"
-            bucket_name: "${bucket_name}"
-            subject: "${subject}"
-        result: answers_result
+          seconds: 30
     
-    # Step 4: Check if answer extraction was successful
-    - check_answers:
-        switch:
-          - condition: ${answers_result.body.status == "success"}
-            next: return_success
-          - condition: true
-            next: handle_answers_error
+    # Step 3: Extract answers using Cloud Run Job  
+    - extract_answers_job:
+        call: googleapis.run.v1.namespaces.jobs.run
+        args:
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+          body:
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-answers"
+                        - "--pdf-path"
+                        - "${pdf_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: answers_job
+    
+    # Step 4: Wait for answers job completion
+    - wait_for_answers:
+        call: sys.sleep
+        args:
+          seconds: 30
     
     # Step 5: Return success result
     - return_success:
         return:
           status: "success"
-          message: "Book extraction completed successfully"
-          questions_result: ${questions_result}
-          answers_result: ${answers_result}
-          total_questions: ${questions_result.body.total_questions}
-          total_answers: ${answers_result.body.total_answers}
-    
-    # Step 6: Handle questions extraction error
-    - handle_questions_error:
-        return:
-          status: "error"
-          message: "Questions extraction failed"
-          error: ${questions_result}
-    
-    # Step 7: Handle answers extraction error
-    - handle_answers_error:
-        return:
-          status: "error"
-          message: "Answers extraction failed"
-          error: ${answers_result}
+          message: "Book extraction completed successfully using Cloud Run Jobs"
+          pdf_path: ${pdf_path}
+          subject: ${subject}
+          questions_job: ${questions_job}
+          answers_job: ${answers_job}
+          bucket_name: ${bucket_name}
 
 # Workflow for processing both question paper and answer key
 process_both:
@@ -87,66 +99,79 @@ process_both:
         assign:
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
+          - region: "us-central1"
           - question_pdf_path: ${input.input.question_pdf_path}
           - answer_pdf_path: ${input.input.answer_pdf_path}
           - subject: "computer_applications"
     
     # Step 1: Extract questions from question paper
-    - extract_questions:
-        call: http.post
+    - extract_questions_job:
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://book-extractor-xxx.run.app/extract-questions"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            pdf_path: "${question_pdf_path}"
-            bucket_name: "${bucket_name}"
-            subject: "${subject}"
-        result: questions_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-questions"
+                        - "--pdf-path"
+                        - "${question_pdf_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: questions_job
     
-    # Step 2: Extract answers from answer key
-    - extract_answers:
-        call: http.post
+    # Step 2: Extract answers from answer key (parallel execution)
+    - extract_answers_job:
+        call: googleapis.run.v1.namespaces.jobs.run
         args:
-          url: "https://book-extractor-xxx.run.app/extract-answers"  # Will be updated after deployment
-          headers:
-            Content-Type: "application/json"
+          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
           body:
-            pdf_path: "${answer_pdf_path}"
-            bucket_name: "${bucket_name}"
-            subject: "${subject}"
-        result: answers_result
+            spec:
+              template:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - args: 
+                        - "extract-answers"
+                        - "--pdf-path"
+                        - "${answer_pdf_path}"
+                        - "--subject"
+                        - "${subject}"
+                        env:
+                        - name: GOOGLE_CLOUD_PROJECT
+                          value: "${project_id}"
+                        - name: BUCKET_NAME
+                          value: "${bucket_name}"
+                        - name: VERTEX_AI_LOCATION
+                          value: "${region}"
+        result: answers_job
     
-    # Step 3: Check if both extractions were successful
-    - check_both:
-        switch:
-          - condition: ${questions_result.body.status == "success"}
-            next: check_answers_success
-          - condition: true
-            next: handle_error
+    # Step 3: Wait for both jobs completion
+    - wait_for_completion:
+        call: sys.sleep
+        args:
+          seconds: 45
     
-    # Step 4: Check if answers extraction was also successful
-    - check_answers_success:
-        switch:
-          - condition: ${answers_result.body.status == "success"}
-            next: return_success
-          - condition: true
-            next: handle_error
-    
-    # Step 5: Return success result
+    # Step 4: Return success result
     - return_success:
         return:
           status: "success"
-          message: "Both question and answer extraction completed successfully"
-          questions_result: ${questions_result}
-          answers_result: ${answers_result}
-          total_questions: ${questions_result.body.total_questions}
-          total_answers: ${answers_result.body.total_answers}
-    
-    # Step 6: Handle error
-    - handle_error:
-        return:
-          status: "error"
-          message: "Extraction failed"
-          questions_result: ${questions_result}
-          answers_result: ${answers_result}
+          message: "Both question and answer extraction completed successfully using Cloud Run Jobs"
+          question_pdf_path: ${question_pdf_path}
+          answer_pdf_path: ${answer_pdf_path}
+          subject: ${subject}
+          questions_job: ${questions_job}
+          answers_job: ${answers_job}
+          bucket_name: ${bucket_name}

@@ -49,13 +49,25 @@ jobs:
       run: |
         docker push $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA
 
-    - name: Deploy to Cloud Run
-      uses: google-github-actions/deploy-cloudrun@v2
-      with:
-        service: $SERVICE_NAME
-        region: $REGION
-        image: $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA
-        flags: --service-account=pdf-processor-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+    - name: Create/Update Cloud Run Job
+      run: |
+        # Create or update Cloud Run Job
+        gcloud run jobs replace --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
+          --max-retries=3 \
+          --parallelism=5 \
+          --task-count=1 \
+          $SERVICE_NAME-job || \
+        gcloud run jobs create $SERVICE_NAME-job \
+          --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
+          --max-retries=3 \
+          --parallelism=5 \
+          --task-count=1
 
     - name: Deploy GCP Workflow
       run: |
@@ -64,6 +76,3 @@ jobs:
           --location=$REGION \
           --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 
-    - name: Update Workflow URLs
-      run: |
-        python book_extractor_service/update_book_extractor_urls.py
