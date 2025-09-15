@@ -44,8 +44,7 @@ jobs:
 
     - name: Build and Deploy Split PDF Service
       run: |
-        cd split_pdf_service
-        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA .
+        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA -f split_pdf_service/Dockerfile .
         docker push $REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA
         
         # Deploy to Cloud Run
@@ -87,8 +86,7 @@ jobs:
 
     - name: Build and Deploy Book Extractor Service
       run: |
-        cd book_extractor_service
-        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA .
+        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA -f book_extractor_service/Dockerfile .
         docker push $REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA
         
         # Deploy to Cloud Run

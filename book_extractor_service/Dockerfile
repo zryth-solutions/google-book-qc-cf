@@ -21,8 +21,11 @@ COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy service-specific code
+COPY book_extractor_service/ .
+
+# Copy utils directory
+COPY utils/ ./utils
 
 # Create necessary directories
 RUN mkdir -p /tmp/pdf_processing
