@@ -38,7 +38,7 @@ main:
           body:
             overrides:
               containerOverrides:
-                - args: ["process-book-folder", "--folder-path", folder_path, "--subject", subject]
+                - args: ["process-book-folder", "--folder-path", ${folder_path}, "--subject", ${subject}]
                   env:
                     - name: GOOGLE_CLOUD_PROJECT
                       value: ${project_id}
@@ -76,7 +76,7 @@ main:
           body:
             overrides:
               containerOverrides:
-                - args: ["extract-questions", "--pdf-path", pdf_path, "--subject", subject]
+                - args: ["extract-questions", "--pdf-path", ${pdf_path}, "--subject", ${subject}]
                   env:
                     - name: GOOGLE_CLOUD_PROJECT
                       value: ${project_id}
@@ -104,7 +104,7 @@ main:
           body:
             overrides:
               containerOverrides:
-                - args: ["extract-answers", "--pdf-path", pdf_path, "--subject", subject]
+                - args: ["extract-answers", "--pdf-path", ${pdf_path}, "--subject", ${subject}]
                   env:
                     - name: GOOGLE_CLOUD_PROJECT
                       value: ${project_id}
