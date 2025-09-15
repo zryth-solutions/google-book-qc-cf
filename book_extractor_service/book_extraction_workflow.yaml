@@ -68,7 +68,6 @@ main:
     
     # Process single PDF (original functionality)
     - process_single_pdf:
-        # Step 1: Extract questions using Cloud Run Job
         call: http.post
         args:
           url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
@@ -86,42 +85,16 @@ main:
                     - name: VERTEX_AI_LOCATION
                       value: ${region}
         result: questions_job
-        next: wait_between_jobs
+        next: wait_before_answers
     
-    # Step 2: Wait between jobs
-    - wait_between_jobs:
+    # Wait between jobs
+    - wait_before_answers:
         call: sys.sleep
         args:
           seconds: 30
         next: extract_answers_job
     
-    # Step 3: Extract answers using Cloud Run Job  
-    - extract_answers_job:
-        call: http.post
-        args:
-          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
-          auth:
-            type: OAuth2
-          body:
-            overrides:
-              containerOverrides:
-                - args: ["extract-questions", "--pdf-path", pdf_path, "--subject", subject]
-                  env:
-                    - name: GOOGLE_CLOUD_PROJECT
-                      value: ${project_id}
-                    - name: BUCKET_NAME
-                      value: ${bucket_name}
-                    - name: VERTEX_AI_LOCATION
-                      value: ${region}
-        result: questions_job
-    
-    # Step 2: Wait between jobs
-    - wait_between_jobs:
-        call: sys.sleep
-        args:
-          seconds: 30
-    
-    # Step 3: Extract answers using Cloud Run Job  
+    # Extract answers using Cloud Run Job  
     - extract_answers_job:
         call: http.post
         args:
@@ -140,15 +113,17 @@ main:
                     - name: VERTEX_AI_LOCATION
                       value: ${region}
         result: answers_job
+        next: wait_for_answers_completion
     
-    # Step 4: Wait for answers job completion
-    - wait_for_answers:
+    # Wait for answers job completion
+    - wait_for_answers_completion:
         call: sys.sleep
         args:
           seconds: 30
+        next: return_single_success
     
-    # Step 5: Return success result
-    - return_success:
+    # Return single PDF processing success
+    - return_single_success:
         return:
           status: "success"
           message: "Book extraction completed successfully using Cloud Run Jobs"
