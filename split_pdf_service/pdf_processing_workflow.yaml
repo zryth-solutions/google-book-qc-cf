@@ -9,27 +9,24 @@ main:
           - project_id: "book-qc-cf"
           - region: "us-central1"
     
-    # Execute complete PDF processing job (analyze + split in one command)
+    # Execute complete PDF processing job using HTTP connector
     - process_pdf_job:
-        call: googleapis.run.v2.projects.locations.jobs.run
+        call: http.post
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/pdf-processor-job"
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/pdf-processor-job:run"}
+          auth:
+            type: OAuth2
           body:
             overrides:
               containerOverrides:
-              - args: 
-                - "process"
-                - "--pdf-path"
-                - "${pdf_path}"
-                - "--bucket-name"
-                - "${bucket_name}"
-                env:
-                - name: PROJECT_ID
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: REGION
-                  value: "${region}"
+                - args: ["process", "--pdf-path", pdf_path, "--bucket-name", bucket_name]
+                  env:
+                    - name: PROJECT_ID
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: REGION
+                      value: ${region}
         result: process_job
     
     # Wait for job completion
@@ -38,13 +35,6 @@ main:
         args:
           seconds: 30
     
-    # Check job execution status
-    - get_execution_status:
-        call: googleapis.run.v2.projects.locations.jobs.executions.get
-        args:
-          name: ${process_job.name}
-        result: execution_status
-    
     # Return success result
     - return_success:
         return:
@@ -52,5 +42,4 @@ main:
           message: "PDF processing completed successfully using Cloud Run Jobs"
           pdf_path: ${pdf_path}
           job_execution: ${process_job}
-          execution_status: ${execution_status}
           bucket_name: ${bucket_name}

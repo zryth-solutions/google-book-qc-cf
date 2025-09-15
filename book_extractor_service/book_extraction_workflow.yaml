@@ -13,25 +13,22 @@ main:
     
     # Step 1: Extract questions using Cloud Run Job
     - extract_questions_job:
-        call: googleapis.run.v2.projects.locations.jobs.run
+        call: http.post
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
           body:
             overrides:
               containerOverrides:
-              - args: 
-                - "extract-questions"
-                - "--pdf-path"
-                - "${pdf_path}"
-                - "--subject"
-                - "${subject}"
-                env:
-                - name: GOOGLE_CLOUD_PROJECT
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: VERTEX_AI_LOCATION
-                  value: "${region}"
+                - args: ["extract-questions", "--pdf-path", pdf_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
         result: questions_job
     
     # Step 2: Wait between jobs
@@ -42,25 +39,22 @@ main:
     
     # Step 3: Extract answers using Cloud Run Job  
     - extract_answers_job:
-        call: googleapis.run.v2.projects.locations.jobs.run
+        call: http.post
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
           body:
             overrides:
               containerOverrides:
-              - args: 
-                - "extract-answers"
-                - "--pdf-path"
-                - "${pdf_path}"
-                - "--subject"
-                - "${subject}"
-                env:
-                - name: GOOGLE_CLOUD_PROJECT
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: VERTEX_AI_LOCATION
-                  value: "${region}"
+                - args: ["extract-answers", "--pdf-path", pdf_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
         result: answers_job
     
     # Step 4: Wait for answers job completion
@@ -78,56 +72,4 @@ main:
           subject: ${subject}
           questions_job: ${questions_job}
           answers_job: ${answers_job}
-          bucket_name: ${bucket_name}
-
-# Workflow for processing folder of PDFs
-process_folder:
-  params: [folder_path, subject, extraction_type]
-  
-  steps:
-    # Set default values
-    - set_defaults:
-        assign:
-          - bucket_name: "book-qc-cf-pdf-storage"
-          - project_id: "book-qc-cf"
-          - region: "us-central1"
-    
-    # Execute folder processing job
-    - process_folder_job:
-        call: googleapis.run.v2.projects.locations.jobs.run
-        args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
-          body:
-            overrides:
-              containerOverrides:
-              - args: 
-                - "extract-folder-${extraction_type}"
-                - "--folder-path"
-                - "${folder_path}"
-                - "--subject"
-                - "${subject}"
-                env:
-                - name: GOOGLE_CLOUD_PROJECT
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: VERTEX_AI_LOCATION
-                  value: "${region}"
-        result: folder_job
-    
-    # Wait for completion
-    - wait_for_completion:
-        call: sys.sleep
-        args:
-          seconds: 60
-    
-    # Return success result
-    - return_folder_success:
-        return:
-          status: "success"
-          message: "Folder extraction completed successfully"
-          folder_path: ${folder_path}
-          subject: ${subject}
-          extraction_type: ${extraction_type}
-          folder_job: ${folder_job}
           bucket_name: ${bucket_name}

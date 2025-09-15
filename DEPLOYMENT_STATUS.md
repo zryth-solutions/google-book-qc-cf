@@ -14,6 +14,7 @@
 - ✅ **Fixed Cloud Run Jobs workflow API** - Updated to v2 API format (googleapis.run.v2.projects.locations.jobs.run)
 - ✅ **Simplified PDF processing workflow** - Now uses single 'process' command for analyze + split
 - ✅ **Updated all workflow files** - Corrected API endpoints for reliable execution
+- ✅ **Fixed workflow syntax errors** - Changed to single input parameter (Google Cloud Workflows requirement)
 
 ### **GCP Services**
 - ✅ **Service Account**: `pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com` - Active

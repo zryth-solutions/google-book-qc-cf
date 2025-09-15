@@ -31,49 +31,43 @@ main:
     
     # Extract questions only
     - extract_questions_only:
-        call: googleapis.run.v2.projects.locations.jobs.run
+        call: http.post
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
           body:
             overrides:
               containerOverrides:
-              - args: 
-                - "extract-folder-questions"
-                - "--folder-path"
-                - "${folder_path}"
-                - "--subject"
-                - "${subject}"
-                env:
-                - name: GOOGLE_CLOUD_PROJECT
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: VERTEX_AI_LOCATION
-                  value: "${region}"
+                - args: ["extract-folder-questions", "--folder-path", folder_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
         result: questions_job
         next: wait_and_return
     
     # Extract answers only
     - extract_answers_only:
-        call: googleapis.run.v2.projects.locations.jobs.run
+        call: http.post
         args:
-          name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+          auth:
+            type: OAuth2
           body:
             overrides:
               containerOverrides:
-              - args: 
-                - "extract-folder-answers"
-                - "--folder-path"
-                - "${folder_path}"
-                - "--subject"
-                - "${subject}"
-                env:
-                - name: GOOGLE_CLOUD_PROJECT
-                  value: "${project_id}"
-                - name: BUCKET_NAME
-                  value: "${bucket_name}"
-                - name: VERTEX_AI_LOCATION
-                  value: "${region}"
+                - args: ["extract-folder-answers", "--folder-path", folder_path, "--subject", subject]
+                  env:
+                    - name: GOOGLE_CLOUD_PROJECT
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: VERTEX_AI_LOCATION
+                      value: ${region}
         result: answers_job
         next: wait_and_return
     
@@ -81,25 +75,22 @@ main:
     - extract_both_types:
         steps:
           - extract_questions_first:
-              call: googleapis.run.v2.projects.locations.jobs.run
+              call: http.post
               args:
-                name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+                url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+                auth:
+                  type: OAuth2
                 body:
                   overrides:
                     containerOverrides:
-                    - args: 
-                      - "extract-folder-questions"
-                      - "--folder-path"
-                      - "${folder_path}"
-                      - "--subject"
-                      - "${subject}"
-                      env:
-                      - name: GOOGLE_CLOUD_PROJECT
-                        value: "${project_id}"
-                      - name: BUCKET_NAME
-                        value: "${bucket_name}"
-                      - name: VERTEX_AI_LOCATION
-                        value: "${region}"
+                      - args: ["extract-folder-questions", "--folder-path", folder_path, "--subject", subject]
+                        env:
+                          - name: GOOGLE_CLOUD_PROJECT
+                            value: ${project_id}
+                          - name: BUCKET_NAME
+                            value: ${bucket_name}
+                          - name: VERTEX_AI_LOCATION
+                            value: ${region}
               result: questions_job
           
           - wait_between_jobs:
@@ -108,25 +99,22 @@ main:
                 seconds: 60
           
           - extract_answers_second:
-              call: googleapis.run.v2.projects.locations.jobs.run
+              call: http.post
               args:
-                name: "projects/${project_id}/locations/${region}/jobs/book-extractor-job"
+                url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/book-extractor-job:run"}
+                auth:
+                  type: OAuth2
                 body:
                   overrides:
                     containerOverrides:
-                    - args: 
-                      - "extract-folder-answers"
-                      - "--folder-path"
-                      - "${folder_path}"
-                      - "--subject"
-                      - "${subject}"
-                      env:
-                      - name: GOOGLE_CLOUD_PROJECT
-                        value: "${project_id}"
-                      - name: BUCKET_NAME
-                        value: "${bucket_name}"
-                      - name: VERTEX_AI_LOCATION
-                        value: "${region}"
+                      - args: ["extract-folder-answers", "--folder-path", folder_path, "--subject", subject]
+                        env:
+                          - name: GOOGLE_CLOUD_PROJECT
+                            value: ${project_id}
+                          - name: BUCKET_NAME
+                            value: ${bucket_name}
+                          - name: VERTEX_AI_LOCATION
+                            value: ${region}
               result: answers_job
         next: wait_and_return
     
