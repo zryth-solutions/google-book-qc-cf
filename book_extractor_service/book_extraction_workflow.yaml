@@ -117,12 +117,20 @@ process_both:
     # Step 3: Check if both extractions were successful
     - check_both:
         switch:
-          - condition: ${questions_result.body.status == "success" && answers_result.body.status == "success"}
+          - condition: ${questions_result.body.status == "success"}
+            next: check_answers_success
+          - condition: true
+            next: handle_error
+    
+    # Step 4: Check if answers extraction was also successful
+    - check_answers_success:
+        switch:
+          - condition: ${answers_result.body.status == "success"}
             next: return_success
           - condition: true
             next: handle_error
     
-    # Step 4: Return success result
+    # Step 5: Return success result
     - return_success:
         return:
           status: "success"
@@ -132,7 +140,7 @@ process_both:
           total_questions: ${questions_result.body.total_questions}
           total_answers: ${answers_result.body.total_answers}
     
-    # Step 5: Handle error
+    # Step 6: Handle error
     - handle_error:
         return:
           status: "error"
