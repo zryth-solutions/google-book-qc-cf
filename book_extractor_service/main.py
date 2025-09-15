@@ -281,6 +281,175 @@ def get_available_subjects():
         logger.error(f"Error getting subjects: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/extract-folder-questions', methods=['POST'])
+def extract_folder_questions():
+    """Extract questions from all PDFs in a folder"""
+    try:
+        data = request.get_json()
+        if not data:
+            raise BadRequest("No JSON data provided")
+        
+        folder_path = data.get('folder_path')
+        if not folder_path:
+            raise BadRequest("folder_path is required")
+        
+        subject = data.get('subject', 'computer_applications')
+        
+        logger.info(f"Starting folder extraction: {folder_path}, subject: {subject}")
+        
+        # List all PDF files in the folder
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        
+        if not pdf_files:
+            return jsonify({
+                'status': 'error',
+                'message': f'No PDF files found in folder: {folder_path}'
+            }), 404
+        
+        # Process each PDF file
+        results = []
+        successful_extractions = 0
+        failed_extractions = 0
+        
+        for pdf_file in pdf_files:
+            logger.info(f"Processing {pdf_file}")
+            try:
+                # Create full GCS path
+                pdf_gcs_path = f"gs://{BUCKET_NAME}/{pdf_file}"
+                
+                # Process the PDF
+                result = process_question_paper(pdf_gcs_path, subject)
+                result['pdf_file'] = pdf_file
+                results.append(result)
+                successful_extractions += 1
+                logger.info(f"Successfully processed {pdf_file}")
+                
+            except Exception as e:
+                logger.error(f"Failed to process {pdf_file}: {str(e)}")
+                results.append({
+                    'pdf_file': pdf_file,
+                    'status': 'error',
+                    'error': str(e)
+                })
+                failed_extractions += 1
+        
+        return jsonify({
+            'status': 'success',
+            'folder_path': folder_path,
+            'subject': subject,
+            'total_files': len(pdf_files),
+            'successful_extractions': successful_extractions,
+            'failed_extractions': failed_extractions,
+            'results': results
+        }), 200
+        
+    except BadRequest as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error in extract_folder_questions: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/extract-folder-answers', methods=['POST'])
+def extract_folder_answers():
+    """Extract answers from all PDFs in a folder"""
+    try:
+        data = request.get_json()
+        if not data:
+            raise BadRequest("No JSON data provided")
+        
+        folder_path = data.get('folder_path')
+        if not folder_path:
+            raise BadRequest("folder_path is required")
+        
+        subject = data.get('subject', 'computer_applications')
+        
+        logger.info(f"Starting folder answer extraction: {folder_path}, subject: {subject}")
+        
+        # List all PDF files in the folder
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        
+        if not pdf_files:
+            return jsonify({
+                'status': 'error',
+                'message': f'No PDF files found in folder: {folder_path}'
+            }), 404
+        
+        # Process each PDF file
+        results = []
+        successful_extractions = 0
+        failed_extractions = 0
+        
+        for pdf_file in pdf_files:
+            logger.info(f"Processing {pdf_file}")
+            try:
+                # Create full GCS path
+                pdf_gcs_path = f"gs://{BUCKET_NAME}/{pdf_file}"
+                
+                # Process the PDF
+                result = process_answer_key(pdf_gcs_path, subject)
+                result['pdf_file'] = pdf_file
+                results.append(result)
+                successful_extractions += 1
+                logger.info(f"Successfully processed {pdf_file}")
+                
+            except Exception as e:
+                logger.error(f"Failed to process {pdf_file}: {str(e)}")
+                results.append({
+                    'pdf_file': pdf_file,
+                    'status': 'error',
+                    'error': str(e)
+                })
+                failed_extractions += 1
+        
+        return jsonify({
+            'status': 'success',
+            'folder_path': folder_path,
+            'subject': subject,
+            'total_files': len(pdf_files),
+            'successful_extractions': successful_extractions,
+            'failed_extractions': failed_extractions,
+            'results': results
+        }), 200
+        
+    except BadRequest as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error in extract_folder_answers: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/list-folder-files', methods=['POST'])
+def list_folder_files():
+    """List all PDF files in a folder"""
+    try:
+        data = request.get_json()
+        if not data:
+            raise BadRequest("No JSON data provided")
+        
+        folder_path = data.get('folder_path')
+        if not folder_path:
+            raise BadRequest("folder_path is required")
+        
+        file_extension = data.get('file_extension', '.pdf')
+        
+        logger.info(f"Listing files in folder: {folder_path}")
+        
+        # List all files in the folder
+        files = bucket_manager.list_files_in_folder(folder_path, file_extension)
+        
+        return jsonify({
+            'status': 'success',
+            'folder_path': folder_path,
+            'file_extension': file_extension,
+            'total_files': len(files),
+            'files': files
+        }), 200
+        
+    except BadRequest as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error in list_folder_files: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)

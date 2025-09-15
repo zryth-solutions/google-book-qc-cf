@@ -1,0 +1,199 @@
+main:
+  params: [input]
+  
+  steps:
+    # Set default values and extract parameters
+    - set_defaults:
+        assign:
+          - bucket_name: "book-qc-cf-pdf-storage"
+          - project_id: "book-qc-cf"
+          - folder_path: ${input.input.folder_path}
+          - extraction_type: ${default(input.input.extraction_type, "questions")}
+          - subject: ${default(input.input.subject, "computer_applications")}
+    
+    # Step 1: List files in folder
+    - list_files:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/list-folder-files"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            folder_path: "${folder_path}"
+            file_extension: ".pdf"
+        result: file_list_result
+    
+    # Step 2: Check if files were found
+    - check_files:
+        switch:
+          - condition: ${file_list_result.body.status == "success" and file_list_result.body.total_files > 0}
+            next: determine_extraction_type
+          - condition: true
+            next: handle_no_files_error
+    
+    # Step 3: Determine extraction type and process accordingly
+    - determine_extraction_type:
+        switch:
+          - condition: ${extraction_type == "questions"}
+            next: extract_folder_questions
+          - condition: ${extraction_type == "answers"}
+            next: extract_folder_answers
+          - condition: ${extraction_type == "both"}
+            next: extract_both_types
+          - condition: true
+            next: handle_invalid_extraction_type
+    
+    # Extract questions from all PDFs in folder
+    - extract_folder_questions:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-folder-questions"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            folder_path: "${folder_path}"
+            subject: "${subject}"
+        result: questions_result
+        next: check_questions_result
+    
+    # Extract answers from all PDFs in folder
+    - extract_folder_answers:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-folder-answers"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            folder_path: "${folder_path}"
+            subject: "${subject}"
+        result: answers_result
+        next: check_answers_result
+    
+    # Extract both questions and answers (sequential processing)
+    - extract_both_types:
+        steps:
+          - extract_questions_first:
+              call: http.post
+              args:
+                url: "https://book-extractor-xxx.run.app/extract-folder-questions"  # Will be updated after deployment
+                headers:
+                  Content-Type: "application/json"
+                body:
+                  folder_path: "${folder_path}"
+                  subject: "${subject}"
+              result: questions_result
+          
+          - extract_answers_second:
+              call: http.post
+              args:
+                url: "https://book-extractor-xxx.run.app/extract-folder-answers"  # Will be updated after deployment
+                headers:
+                  Content-Type: "application/json"
+                body:
+                  folder_path: "${folder_path}"
+                  subject: "${subject}"
+              result: answers_result
+        next: check_both_results
+    
+    # Check questions extraction result
+    - check_questions_result:
+        switch:
+          - condition: ${questions_result.body.status == "success"}
+            next: return_questions_success
+          - condition: true
+            next: handle_questions_error
+    
+    # Check answers extraction result
+    - check_answers_result:
+        switch:
+          - condition: ${answers_result.body.status == "success"}
+            next: return_answers_success
+          - condition: true
+            next: handle_answers_error
+    
+    # Check both extraction results
+    - check_both_results:
+        switch:
+          - condition: ${questions_result.body.status == "success"}
+            next: check_answers_success
+          - condition: true
+            next: handle_questions_error
+    
+    - check_answers_success:
+        switch:
+          - condition: ${answers_result.body.status == "success"}
+            next: return_both_success
+          - condition: true
+            next: handle_answers_error
+    
+    # Success returns
+    - return_questions_success:
+        return:
+          status: "success"
+          message: "Folder question extraction completed successfully"
+          extraction_type: "questions"
+          folder_path: "${folder_path}"
+          subject: "${subject}"
+          file_count: ${file_list_result.body.total_files}
+          successful_extractions: ${questions_result.body.successful_extractions}
+          failed_extractions: ${questions_result.body.failed_extractions}
+          questions_result: ${questions_result.body}
+    
+    - return_answers_success:
+        return:
+          status: "success"
+          message: "Folder answer extraction completed successfully"
+          extraction_type: "answers"
+          folder_path: "${folder_path}"
+          subject: "${subject}"
+          file_count: ${file_list_result.body.total_files}
+          successful_extractions: ${answers_result.body.successful_extractions}
+          failed_extractions: ${answers_result.body.failed_extractions}
+          answers_result: ${answers_result.body}
+    
+    - return_both_success:
+        return:
+          status: "success"
+          message: "Folder extraction (both questions and answers) completed successfully"
+          extraction_type: "both"
+          folder_path: "${folder_path}"
+          subject: "${subject}"
+          file_count: ${file_list_result.body.total_files}
+          questions_successful: ${questions_result.body.successful_extractions}
+          questions_failed: ${questions_result.body.failed_extractions}
+          answers_successful: ${answers_result.body.successful_extractions}
+          answers_failed: ${answers_result.body.failed_extractions}
+          questions_result: ${questions_result.body}
+          answers_result: ${answers_result.body}
+    
+    # Error handlers
+    - handle_no_files_error:
+        return:
+          status: "error"
+          message: ${"No PDF files found in folder: " + folder_path}
+          folder_path: "${folder_path}"
+          file_list_result: ${file_list_result.body}
+    
+    - handle_invalid_extraction_type:
+        return:
+          status: "error"
+          message: ${"Invalid extraction_type: " + extraction_type + ". Must be 'questions', 'answers', or 'both'"}
+          extraction_type: "${extraction_type}"
+    
+    - handle_questions_error:
+        return:
+          status: "error"
+          message: "Question extraction failed"
+          extraction_type: "questions"
+          folder_path: "${folder_path}"
+          subject: "${subject}"
+          questions_result: ${questions_result.body}
+    
+    - handle_answers_error:
+        return:
+          status: "error"
+          message: "Answer extraction failed"
+          extraction_type: "answers"
+          folder_path: "${folder_path}"
+          subject: "${subject}"
+          answers_result: ${answers_result.body}

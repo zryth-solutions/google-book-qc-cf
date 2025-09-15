@@ -184,3 +184,37 @@ class BucketManager:
             str: Public URL
         """
         return f"https://storage.googleapis.com/{self.bucket_name}/{gcs_path}"
+    
+    def list_files_in_folder(self, folder_path: str, file_extension: str = ".pdf") -> List[str]:
+        """
+        List all files with specified extension in a folder
+        
+        Args:
+            folder_path: Path to folder in GCS bucket (e.g., "question_papers/")
+            file_extension: File extension to filter by (default: ".pdf")
+            
+        Returns:
+            List[str]: List of file paths relative to bucket root
+        """
+        try:
+            # Ensure folder_path ends with /
+            if not folder_path.endswith('/'):
+                folder_path += '/'
+            
+            # List all blobs with the folder prefix
+            blobs = self.client.list_blobs(self.bucket, prefix=folder_path)
+            
+            # Filter for files with specified extension
+            pdf_files = []
+            for blob in blobs:
+                if blob.name.lower().endswith(file_extension.lower()):
+                    # Skip the folder itself
+                    if blob.name != folder_path:
+                        pdf_files.append(blob.name)
+            
+            logger.info(f"Found {len(pdf_files)} {file_extension} files in {folder_path}")
+            return pdf_files
+            
+        except Exception as e:
+            logger.error(f"Error listing files in folder {folder_path}: {str(e)}")
+            return []
