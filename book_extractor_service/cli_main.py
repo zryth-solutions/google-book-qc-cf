@@ -507,24 +507,51 @@ def process_folder_answers_with_output(folder_path: str, subject: str, output_fo
 def process_question_paper_with_output(pdf_path: str, subject: str, output_path: str) -> Dict[str, Any]:
     """Process question paper and save to specific output path"""
     try:
-        # Create extractor
-        factory = SubjectExtractorFactory()
-        extractor = factory.get_extractor(subject)
+        # Extract filename from GCS path
+        pdf_filename = extract_filename_from_gcs_path(pdf_path)
+        logger.info(f"Processing question paper: {pdf_filename}")
         
-        # Extract questions
-        questions = extractor.extract_questions(pdf_path)
+        # Download PDF from GCS to temporary file
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+            temp_pdf_path = temp_pdf.name
         
-        # Save to specified output path
-        bucket_manager.save_json_to_gcs(questions, output_path)
-        
-        return {
-            'status': 'success',
-            'message': 'Questions extracted successfully',
-            'pdf_path': pdf_path,
-            'subject': subject,
-            'output_path': output_path,
-            'question_count': len(questions) if isinstance(questions, list) else 0
-        }
+        try:
+            # Download PDF from bucket
+            if not bucket_manager.download_file(pdf_filename, temp_pdf_path):
+                raise Exception(f"Failed to download PDF from GCS: {pdf_filename}")
+            
+            # Get subject-specific extractor and config
+            factory = SubjectExtractorFactory()
+            subject_extractor = factory.get_extractor(subject)
+            question_config = subject_extractor.get_question_config()
+            
+            # Initialize Vertex AI extractor
+            vertex_extractor = VertexAIPDFExtractor(PROJECT_ID, VERTEX_AI_LOCATION)
+            
+            # Extract questions
+            logger.info(f"Starting question extraction for: {pdf_filename}")
+            result = vertex_extractor.process_pdf(temp_pdf_path, question_config, subject_extractor)
+            
+            if not result:
+                raise Exception("Question extraction failed")
+            
+            # Save to specified output path
+            bucket_manager.save_json_to_gcs(result, output_path)
+            
+            return {
+                'status': 'success',
+                'message': 'Questions extracted successfully',
+                'pdf_path': pdf_path,
+                'subject': subject,
+                'output_path': output_path,
+                'question_count': len(result.get('questions', [])),
+                'document_info': result.get('document_info', {})
+            }
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
         
     except Exception as e:
         logger.error(f"Error processing question paper with output: {str(e)}")
@@ -537,24 +564,51 @@ def process_question_paper_with_output(pdf_path: str, subject: str, output_path:
 def process_answer_key_with_output(pdf_path: str, subject: str, output_path: str) -> Dict[str, Any]:
     """Process answer key and save to specific output path"""
     try:
-        # Create extractor
-        factory = SubjectExtractorFactory()
-        extractor = factory.get_extractor(subject)
+        # Extract filename from GCS path
+        pdf_filename = extract_filename_from_gcs_path(pdf_path)
+        logger.info(f"Processing answer key: {pdf_filename}")
         
-        # Extract answers
-        answers = extractor.extract_answers(pdf_path)
+        # Download PDF from GCS to temporary file
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+            temp_pdf_path = temp_pdf.name
         
-        # Save to specified output path
-        bucket_manager.save_json_to_gcs(answers, output_path)
-        
-        return {
-            'status': 'success',
-            'message': 'Answers extracted successfully',
-            'pdf_path': pdf_path,
-            'subject': subject,
-            'output_path': output_path,
-            'answer_count': len(answers) if isinstance(answers, list) else 0
-        }
+        try:
+            # Download PDF from bucket
+            if not bucket_manager.download_file(pdf_filename, temp_pdf_path):
+                raise Exception(f"Failed to download PDF from GCS: {pdf_filename}")
+            
+            # Get subject-specific extractor and config
+            factory = SubjectExtractorFactory()
+            subject_extractor = factory.get_extractor(subject)
+            answer_config = subject_extractor.get_answer_config()
+            
+            # Initialize Vertex AI extractor
+            vertex_extractor = VertexAIPDFExtractor(PROJECT_ID, VERTEX_AI_LOCATION)
+            
+            # Extract answers
+            logger.info(f"Starting answer extraction for: {pdf_filename}")
+            result = vertex_extractor.process_pdf(temp_pdf_path, answer_config, subject_extractor)
+            
+            if not result:
+                raise Exception("Answer extraction failed")
+            
+            # Save to specified output path
+            bucket_manager.save_json_to_gcs(result, output_path)
+            
+            return {
+                'status': 'success',
+                'message': 'Answers extracted successfully',
+                'pdf_path': pdf_path,
+                'subject': subject,
+                'output_path': output_path,
+                'answer_count': len(result.get('answers', [])),
+                'document_info': result.get('document_info', {})
+            }
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
         
     except Exception as e:
         logger.error(f"Error processing answer key with output: {str(e)}")
