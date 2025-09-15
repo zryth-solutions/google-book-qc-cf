@@ -138,8 +138,9 @@ jobs:
         if [ -n "$SPLIT_PDF_URL" ]; then
           cd split_pdf_service
           python3 update_workflow_urls.py "$SPLIT_PDF_URL"
+          cd ..
           gcloud workflows deploy pdf-processing-workflow \
-            --source pdf_processing_workflow.yaml \
+            --source split_pdf_service/pdf_processing_workflow.yaml \
             --location $REGION \
             --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
         fi
@@ -148,8 +149,9 @@ jobs:
         if [ -n "$BOOK_EXTRACTOR_URL" ]; then
           cd book_extractor_service
           python3 update_book_extractor_urls.py "$BOOK_EXTRACTOR_URL"
+          cd ..
           gcloud workflows deploy book-extraction-workflow \
-            --source book_extraction_workflow.yaml \
+            --source book_extractor_service/book_extraction_workflow.yaml \
             --location $REGION \
             --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
         fi
