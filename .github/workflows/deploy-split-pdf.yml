@@ -61,21 +61,36 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
     
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
+
     - name: Configure Docker to use gcloud as a credential helper
       run: |
         gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev
     
-    - name: Build and push Docker image
-      run: |
-        # Build the Docker image from split_pdf_service directory
-        docker build -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA -f split_pdf_service/Dockerfile .
-        
-        # Push the Docker image
-        docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
-        
-        # Tag as latest
-        docker tag $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
-        docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
+    - name: Build and push Docker image with retry
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 3
+        retry_wait_seconds: 60
+        command: |
+          # Build the Docker image from split_pdf_service directory
+          docker build \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+            -f split_pdf_service/Dockerfile .
+          
+          # Push the Docker image
+          docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
+          
+          # Tag as latest
+          docker tag $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
+          docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
     
     - name: Create/Update Cloud Run Job
       id: deploy
