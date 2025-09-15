@@ -49,7 +49,7 @@ def main():
     PROJECT_ID = 'book-qc-cf'
     REGION = 'us-central1'
     SERVICE_NAME = 'book-extractor'
-    WORKFLOW_FILE = 'workflows/book_extraction_workflow.yaml'
+    WORKFLOW_FILE = 'book_extraction_workflow.yaml'
     
     print(f"Updating book extractor workflow URLs...")
     print(f"Project: {PROJECT_ID}")

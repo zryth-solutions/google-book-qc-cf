@@ -20,7 +20,7 @@ cloud_run:
 # Workflow Configuration
 workflow:
   name: "pdf-processing-workflow"
-  file: "workflows/pdf_processing_workflow.yaml"
+  file: "split_pdf_service/pdf_processing_workflow.yaml"
 
 # Environment Variables
 environment:

@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-def update_workflow_urls(service_url: str, workflow_file: str = "workflows/pdf_processing_workflow.yaml"):
+def update_workflow_urls(service_url: str, workflow_file: str = "pdf_processing_workflow.yaml"):
     """Update workflow file with actual Cloud Run service URL"""
     
     if not service_url.startswith("https://"):
