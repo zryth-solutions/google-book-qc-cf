@@ -67,8 +67,8 @@ jobs:
     
     - name: Build and push Docker image
       run: |
-        # Build the Docker image
-        docker build -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA .
+        # Build the Docker image from split_pdf_service directory
+        docker build -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA -f split_pdf_service/Dockerfile .
         
         # Push the Docker image
         docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
@@ -94,7 +94,7 @@ jobs:
       run: |
         echo "Deploying GCP Workflow..."
         gcloud workflows deploy pdf-processing-workflow \
-          --source=pdf_processing_workflow.yaml \
+          --source=split_pdf_service/pdf_processing_workflow.yaml \
           --location=${{ env.REGION }} \
           --project=${{ env.PROJECT_ID }}
         echo "✅ Workflow deployed successfully!"
@@ -102,7 +102,7 @@ jobs:
     - name: Update Workflow URLs
       run: |
         echo "Updating workflow URLs with actual service URL..."
-        python3 update_workflow_urls.py ${{ steps.deploy.outputs.url }}
+        python3 split_pdf_service/update_workflow_urls.py ${{ steps.deploy.outputs.url }}
         echo "✅ Workflow URLs updated!"
     
     - name: Show Output

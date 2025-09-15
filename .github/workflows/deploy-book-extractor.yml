@@ -43,7 +43,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA .
+        docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA -f book_extractor_service/Dockerfile .
 
     - name: Push Docker image
       run: |
@@ -57,13 +57,13 @@ jobs:
         image: $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA
         flags: --service-account=${{ secrets.SERVICE_ACCOUNT }}
 
-    - name: Update Workflow URLs
-      run: |
-        python update_workflow_urls.py
-
     - name: Deploy GCP Workflow
       run: |
         gcloud workflows deploy book-extraction-workflow \
-          --source=book_extraction_workflow.yaml \
+          --source=book_extractor_service/book_extraction_workflow.yaml \
           --location=$REGION \
           --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+
+    - name: Update Workflow URLs
+      run: |
+        python book_extractor_service/update_book_extractor_urls.py
