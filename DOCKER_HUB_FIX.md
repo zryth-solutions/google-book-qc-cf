@@ -1,9 +1,16 @@
 # 🐳 Docker Hub Rate Limit Fix
 
 ## Issue Description
-GitHub Actions was failing with Docker Hub authentication errors:
+GitHub Actions was failing with multiple Docker Hub-related errors:
+
+**Initial Error:**
 ```
 ERROR: failed to authorize: failed to fetch oauth token: unexpected status from POST request to https://auth.docker.io/token: 500 Internal Server Error
+```
+
+**Secondary Error (Docker Buildx):**
+```
+ERROR: Error response from daemon: Head "https://registry-1.docker.io/v2/moby/buildkit/manifests/buildx-stable-1": received unexpected HTTP status: 500 Internal Server Error
 ```
 
 ## Root Cause
