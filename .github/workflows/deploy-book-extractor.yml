@@ -58,23 +58,28 @@ jobs:
 
     - name: Create/Update Cloud Run Job
       run: |
-        # Create or update Cloud Run Job
-        gcloud run jobs replace --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
-          --region=$REGION \
-          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
-          --max-retries=3 \
-          --parallelism=5 \
-          --task-count=1 \
-          $SERVICE_NAME-job || \
-        gcloud run jobs create $SERVICE_NAME-job \
-          --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
-          --region=$REGION \
-          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
-          --max-retries=3 \
-          --parallelism=5 \
-          --task-count=1
+        # Try to update existing job first, if it fails, create a new one
+        if gcloud run jobs describe $SERVICE_NAME-job --region=$REGION >/dev/null 2>&1; then
+          echo "Job exists, updating..."
+          gcloud run jobs update $SERVICE_NAME-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
+            --max-retries=3 \
+            --parallelism=5 \
+            --tasks=1
+        else
+          echo "Job doesn't exist, creating..."
+          gcloud run jobs create $SERVICE_NAME-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
+            --max-retries=3 \
+            --parallelism=5 \
+            --tasks=1
+        fi
 
     - name: Deploy GCP Workflow
       run: |

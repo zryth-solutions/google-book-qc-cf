@@ -2,10 +2,15 @@
 
 ## ✅ **Configuration Status**
 
-### **GitHub Actions Workflows**
+### **GitHub Actions Workflows** (Updated - Fixed Cloud Run Job Commands)
 - ✅ **Main Workflow**: `.github/workflows/deploy-all-services.yml` - Deploys both services conditionally
-- ✅ **Split PDF Workflow**: `.github/workflows/deploy-split-pdf.yml` - Individual service deployment
+- ✅ **Split PDF Workflow**: `.github/workflows/deploy-split-pdf.yml` - Individual service deployment  
 - ✅ **Book Extractor Workflow**: `.github/workflows/deploy-book-extractor.yml` - Individual service deployment
+
+### **Recent Fixes Applied**
+- ✅ **Fixed `gcloud run jobs replace` error** - Now uses `gcloud run jobs update` for existing jobs
+- ✅ **Fixed `--task-count` parameter error** - Changed to `--tasks` parameter
+- ✅ **Improved job deployment logic** - Check if job exists before creating/updating
 
 ### **GCP Services**
 - ✅ **Service Account**: `pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com` - Active
