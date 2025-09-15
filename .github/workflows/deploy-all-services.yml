@@ -9,6 +9,7 @@ on:
       - 'utils/**'
       - 'requirements.txt'
       - 'config.yaml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 env:
@@ -19,7 +20,7 @@ env:
 jobs:
   deploy-split-pdf:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'split_pdf_service/') || contains(github.event.head_commit.added, 'split_pdf_service/') || github.event_name == 'workflow_dispatch'
+    if: contains(github.event.head_commit.modified, 'split_pdf_service/') || contains(github.event.head_commit.added, 'split_pdf_service/') || contains(github.event.head_commit.modified, '.github/workflows/') || github.event_name == 'workflow_dispatch'
     
     permissions:
       contents: read
@@ -63,7 +64,7 @@ jobs:
 
   deploy-book-extractor:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'book_extractor_service/') || contains(github.event.head_commit.added, 'book_extractor_service/') || github.event_name == 'workflow_dispatch'
+    if: contains(github.event.head_commit.modified, 'book_extractor_service/') || contains(github.event.head_commit.added, 'book_extractor_service/') || contains(github.event.head_commit.modified, '.github/workflows/') || github.event_name == 'workflow_dispatch'
     
     permissions:
       contents: read
