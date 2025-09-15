@@ -1,0 +1,141 @@
+main:
+  params: [pdf_path, extraction_type, subject]
+  
+  steps:
+    # Set default values
+    - set_defaults:
+        assign:
+          - bucket_name: "book-qc-cf-pdf-storage"
+          - project_id: "book-qc-cf"
+          - extraction_type: "questions"
+          - subject: "computer_applications"
+    
+    # Step 1: Extract questions from question paper
+    - extract_questions:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-questions"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${pdf_path}"
+            bucket_name: "${bucket_name}"
+            subject: "${subject}"
+        result: questions_result
+    
+    # Step 2: Check if question extraction was successful
+    - check_questions:
+        switch:
+          - condition: ${questions_result.body.status == "success"}
+            next: extract_answers
+          - condition: true
+            next: handle_questions_error
+    
+    # Step 3: Extract answers from answer key (if available)
+    - extract_answers:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-answers"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${pdf_path}"
+            bucket_name: "${bucket_name}"
+            subject: "${subject}"
+        result: answers_result
+    
+    # Step 4: Check if answer extraction was successful
+    - check_answers:
+        switch:
+          - condition: ${answers_result.body.status == "success"}
+            next: return_success
+          - condition: true
+            next: handle_answers_error
+    
+    # Step 5: Return success result
+    - return_success:
+        return:
+          status: "success"
+          message: "Book extraction completed successfully"
+          questions_result: ${questions_result}
+          answers_result: ${answers_result}
+          total_questions: ${questions_result.body.total_questions}
+          total_answers: ${answers_result.body.total_answers}
+    
+    # Step 6: Handle questions extraction error
+    - handle_questions_error:
+        return:
+          status: "error"
+          message: "Questions extraction failed"
+          error: ${questions_result}
+    
+    # Step 7: Handle answers extraction error
+    - handle_answers_error:
+        return:
+          status: "error"
+          message: "Answers extraction failed"
+          error: ${answers_result}
+
+# Workflow for processing both question paper and answer key
+process_both:
+  params: [question_pdf_path, answer_pdf_path, subject]
+  
+  steps:
+    # Set default values
+    - set_defaults:
+        assign:
+          - bucket_name: "book-qc-cf-pdf-storage"
+          - project_id: "book-qc-cf"
+          - subject: "computer_applications"
+    
+    # Step 1: Extract questions from question paper
+    - extract_questions:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-questions"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${question_pdf_path}"
+            bucket_name: "${bucket_name}"
+            subject: "${subject}"
+        result: questions_result
+    
+    # Step 2: Extract answers from answer key
+    - extract_answers:
+        call: http.post
+        args:
+          url: "https://book-extractor-xxx.run.app/extract-answers"  # Will be updated after deployment
+          headers:
+            Content-Type: "application/json"
+          body:
+            pdf_path: "${answer_pdf_path}"
+            bucket_name: "${bucket_name}"
+            subject: "${subject}"
+        result: answers_result
+    
+    # Step 3: Check if both extractions were successful
+    - check_both:
+        switch:
+          - condition: ${questions_result.body.status == "success" && answers_result.body.status == "success"}
+            next: return_success
+          - condition: true
+            next: handle_error
+    
+    # Step 4: Return success result
+    - return_success:
+        return:
+          status: "success"
+          message: "Both question and answer extraction completed successfully"
+          questions_result: ${questions_result}
+          answers_result: ${answers_result}
+          total_questions: ${questions_result.body.total_questions}
+          total_answers: ${answers_result.body.total_answers}
+    
+    # Step 5: Handle error
+    - handle_error:
+        return:
+          status: "error"
+          message: "Extraction failed"
+          questions_result: ${questions_result}
+          answers_result: ${answers_result}

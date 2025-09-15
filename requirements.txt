@@ -11,6 +11,7 @@ PyPDF2==3.0.1
 google-cloud-storage
 google-cloud-run
 google-cloud-workflows
+google-cloud-aiplatform
 
 # HTTP requests
 requests==2.31.0
