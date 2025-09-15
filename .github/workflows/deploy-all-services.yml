@@ -56,7 +56,7 @@ jobs:
         
         # Deploy workflow
         gcloud workflows deploy pdf-processing-workflow \
-          --source pdf_processing_workflow.yaml \
+          --source split_pdf_service/pdf_processing_workflow.yaml \
           --location $REGION \
           --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 
@@ -98,7 +98,7 @@ jobs:
         
         # Deploy workflow
         gcloud workflows deploy book-extraction-workflow \
-          --source book_extraction_workflow.yaml \
+          --source book_extractor_service/book_extraction_workflow.yaml \
           --location $REGION \
           --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 
@@ -146,7 +146,7 @@ jobs:
         
         # Update book extractor workflow URLs
         if [ -n "$BOOK_EXTRACTOR_URL" ]; then
-          cd ../book_extractor_service
+          cd book_extractor_service
           python3 update_book_extractor_urls.py "$BOOK_EXTRACTOR_URL"
           gcloud workflows deploy book-extraction-workflow \
             --source book_extraction_workflow.yaml \
