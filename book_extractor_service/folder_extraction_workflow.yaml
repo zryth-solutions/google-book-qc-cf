@@ -1,10 +1,13 @@
 main:
-  params: [folder_path, subject, extraction_type]
+  params: [input]
   
   steps:
-    # Set default values
+    # Set default values and extract parameters
     - set_defaults:
         assign:
+          - folder_path: ${input.folder_path}
+          - subject: ${input.subject}
+          - extraction_type: ${input.extraction_type}
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
           - region: "us-central1"
@@ -142,6 +145,4 @@ main:
           folder_path: ${folder_path}
           subject: ${subject}
           extraction_type: ${extraction_type}
-          questions_job: ${default(map.get(sys.get_env(), "questions_job"), null)}
-          answers_job: ${default(map.get(sys.get_env(), "answers_job"), null)}
           bucket_name: ${bucket_name}

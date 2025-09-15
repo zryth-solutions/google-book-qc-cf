@@ -1,10 +1,12 @@
 main:
-  params: [pdf_path, subject]
+  params: [input]
   
   steps:
-    # Set default values
+    # Set default values and extract parameters
     - set_defaults:
         assign:
+          - pdf_path: ${input.pdf_path}
+          - subject: ${input.subject}
           - bucket_name: "book-qc-cf-pdf-storage"
           - project_id: "book-qc-cf"
           - region: "us-central1"

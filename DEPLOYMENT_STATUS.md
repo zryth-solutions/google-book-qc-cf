@@ -11,6 +11,9 @@
 - ✅ **Fixed `gcloud run jobs replace` error** - Now uses `gcloud run jobs update` for existing jobs
 - ✅ **Fixed `--task-count` parameter error** - Changed to `--tasks` parameter
 - ✅ **Improved job deployment logic** - Check if job exists before creating/updating
+- ✅ **Fixed Cloud Run Jobs workflow API** - Updated to v2 API format (googleapis.run.v2.projects.locations.jobs.run)
+- ✅ **Simplified PDF processing workflow** - Now uses single 'process' command for analyze + split
+- ✅ **Updated all workflow files** - Corrected API endpoints for reliable execution
 
 ### **GCP Services**
 - ✅ **Service Account**: `pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com` - Active
