@@ -1,0 +1,20 @@
+# Working requirements - let pip resolve dependencies automatically
+# Core web framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# PDF processing
+PyMuPDF==1.23.8
+PyPDF2==3.0.1
+
+# Google Cloud dependencies (let pip resolve versions)
+google-cloud-storage
+google-cloud-run
+google-cloud-workflows
+google-cloud-aiplatform
+
+# HTTP requests
+requests==2.31.0
+
+# Production server
+gunicorn==21.2.0
