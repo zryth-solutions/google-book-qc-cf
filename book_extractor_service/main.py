@@ -29,7 +29,7 @@ BUCKET_NAME = os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage')
 VERTEX_AI_LOCATION = os.getenv('VERTEX_AI_LOCATION', 'us-central1')
 
 # Initialize services
-bucket_manager = BucketManager(BUCKET_NAME, PROJECT_ID)
+bucket_manager = BucketManager(PROJECT_ID, BUCKET_NAME)
 
 def extract_filename_from_gcs_path(gcs_path: str) -> str:
     """Extract filename from GCS path"""
