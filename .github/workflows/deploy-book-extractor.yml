@@ -14,7 +14,7 @@ env:
   REGION: us-central1
   SERVICE_NAME: book-extractor
   BUCKET_NAME: book-qc-cf-pdf-storage
-  ARTIFACT_REGISTRY: book-qc-cf-artifacts
+  ARTIFACT_REGISTRY: book-extractor
 
 jobs:
   build-and-deploy:
@@ -55,7 +55,7 @@ jobs:
         service: $SERVICE_NAME
         region: $REGION
         image: $REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA
-        flags: --service-account=${{ secrets.SERVICE_ACCOUNT }}
+        flags: --service-account=pdf-processor-sa@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
     - name: Deploy GCP Workflow
       run: |
