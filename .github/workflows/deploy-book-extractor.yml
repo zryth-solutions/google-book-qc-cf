@@ -81,10 +81,30 @@ jobs:
             --tasks=1
         fi
 
+    - name: Wait for Cloud Run Job to stabilize
+      run: |
+        echo "Waiting for Cloud Run Job to stabilize..."
+        sleep 10
+
     - name: Deploy GCP Workflow
       run: |
-        gcloud workflows deploy book-extraction-workflow \
-          --source=book_extractor_service/book_extraction_workflow.yaml \
-          --location=$REGION \
-          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+        # Add retry logic for workflow deployment
+        for i in {1..3}; do
+          echo "Attempt $i: Deploying workflow..."
+          if gcloud workflows deploy book-extraction-workflow \
+            --source=book_extractor_service/book_extraction_workflow.yaml \
+            --location=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com; then
+            echo "Workflow deployed successfully"
+            break
+          else
+            echo "Workflow deployment failed, attempt $i"
+            if [ $i -eq 3 ]; then
+              echo "All attempts failed"
+              exit 1
+            fi
+            echo "Waiting 30 seconds before retry..."
+            sleep 30
+          fi
+        done
 
