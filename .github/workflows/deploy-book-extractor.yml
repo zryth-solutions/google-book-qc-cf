@@ -68,7 +68,8 @@ jobs:
             --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
             --max-retries=3 \
             --parallelism=5 \
-            --tasks=1
+            --tasks=1 \
+            --timeout=604800s
         else
           echo "Job doesn't exist, creating..."
           gcloud run jobs create $SERVICE_NAME-job \
@@ -78,7 +79,8 @@ jobs:
             --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,BUCKET_NAME=$BUCKET_NAME,VERTEX_AI_LOCATION=$REGION \
             --max-retries=3 \
             --parallelism=5 \
-            --tasks=1
+            --tasks=1 \
+            --timeout=604800s
         fi
 
     - name: Wait for Cloud Run Job to stabilize

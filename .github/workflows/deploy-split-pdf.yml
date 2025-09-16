@@ -97,7 +97,8 @@ jobs:
             --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
             --max-retries=3 \
             --parallelism=5 \
-            --tasks=1
+            --tasks=1 \
+            --timeout=604800s
         else
           echo "Job doesn't exist, creating..."
           gcloud run jobs create $SERVICE-job \
@@ -107,7 +108,8 @@ jobs:
             --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
             --max-retries=3 \
             --parallelism=5 \
-            --tasks=1
+            --tasks=1 \
+            --timeout=604800s
         fi
     
     - name: Deploy GCP Workflow

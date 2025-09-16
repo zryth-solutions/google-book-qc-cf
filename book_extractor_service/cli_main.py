@@ -428,7 +428,7 @@ def process_folder_questions_with_output(folder_path: str, subject: str, output_
             'failed_extractions': failed_extractions,
             'results': results
         }
-        
+
     except Exception as e:
         logger.error(f"Error in folder question extraction with output: {str(e)}")
         return {
