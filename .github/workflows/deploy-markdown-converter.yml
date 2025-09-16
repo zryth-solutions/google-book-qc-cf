@@ -1,0 +1,219 @@
+name: Build and Deploy RAG Ingestion Service to GCP Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'rag_ingestion_service/**'
+      - 'requirements.txt'
+      - 'utils/**'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: book-qc-cf
+  GAR_LOCATION: us-central1
+  REGION: us-central1
+  SERVICE: rag-ingestion
+  REPOSITORY: rag-ingestion
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install --no-cache-dir -r requirements.txt
+        pip install --no-cache-dir -r rag_ingestion_service/requirements.txt
+    
+    - name: Run tests
+      run: |
+        # Add your test commands here
+        echo "Tests would run here"
+        # python -m pytest tests/
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Google Auth
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.SERVICE_ACCOUNT }}
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install gcloud beta components
+      run: gcloud components install beta --quiet
+    
+    - name: Configure Docker to use gcloud as a credential helper
+      run: |
+        gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev
+    
+    - name: Build and push Docker image with retry
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 3
+        retry_wait_seconds: 60
+        command: |
+          # Build the Docker image from rag_ingestion_service directory
+          docker build \
+            -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+            -f rag_ingestion_service/Dockerfile .
+          
+          # Push the Docker image
+          docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
+          
+          # Tag as latest
+          docker tag $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
+          docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:latest
+    
+    - name: Create/Update Cloud Run Job
+      id: deploy
+      run: |
+        # Try to update existing job first, if it fails, create a new one
+        if gcloud run jobs describe $SERVICE-job --region=$REGION >/dev/null 2>&1; then
+          echo "Job exists, updating..."
+          gcloud beta run jobs replace - <<EOF
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: $SERVICE-job
+  namespace: '$PROJECT_ID'
+  labels:
+    cloud.googleapis.com/location: $REGION
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ${{ secrets.SERVICE_ACCOUNT }}
+          containers:
+          - image: $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
+            name: $SERVICE
+            resources:
+              limits:
+                cpu: '2'
+                memory: 2Gi
+            env:
+            - name: PROJECT_ID
+              value: '$PROJECT_ID'
+            - name: BUCKET_NAME
+              value: 'llm-books'
+            - name: REGION
+              value: '$REGION'
+            - name: QDRANT_URL
+              value: 'https://qdrant.tech'
+            - name: MARKER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: marker-api-key
+                  key: key
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-api-key
+                  key: key
+            args: ["process", "--help"]
+          restartPolicy: Never
+          timeoutSeconds: 3600
+      backoffLimit: 3
+      completions: 1
+      parallelism: 1
+EOF
+        else
+          echo "Job doesn't exist, creating..."
+          gcloud beta run jobs replace - <<EOF
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: $SERVICE-job
+  namespace: '$PROJECT_ID'
+  labels:
+    cloud.googleapis.com/location: $REGION
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ${{ secrets.SERVICE_ACCOUNT }}
+          containers:
+          - image: $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
+            name: $SERVICE
+            resources:
+              limits:
+                cpu: '2'
+                memory: 2Gi
+            env:
+            - name: PROJECT_ID
+              value: '$PROJECT_ID'
+            - name: BUCKET_NAME
+              value: 'llm-books'
+            - name: REGION
+              value: '$REGION'
+            - name: QDRANT_URL
+              value: 'https://qdrant.tech'
+            - name: MARKER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: marker-api-key
+                  key: key
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-api-key
+                  key: key
+            args: ["process", "--help"]
+          restartPolicy: Never
+          timeoutSeconds: 3600
+      backoffLimit: 3
+      completions: 1
+      parallelism: 1
+EOF
+        fi
+    
+    - name: Deploy GCP Workflow
+      run: |
+        echo "Deploying GCP Workflow..."
+        gcloud workflows deploy rag-ingestion-workflow \
+          --source=rag_ingestion_service/rag_ingestion_workflow.yaml \
+          --location=${{ env.REGION }} \
+          --project=${{ env.PROJECT_ID }}
+        echo "✅ Workflow deployed successfully!"
+    
+    - name: Show Output
+      run: |
+        echo "🎉 Deployment Complete!"
+        echo "Cloud Run Job: ${{ env.SERVICE }}-job"
+        echo "Workflow: rag-ingestion-workflow"
+        echo "Project: ${{ env.PROJECT_ID }}"
+        echo "Region: ${{ env.REGION }}"
+        echo ""
+        echo "📝 Next steps:"
+        echo "1. Create secrets for API keys:"
+        echo "   gcloud secrets create marker-api-key --data-file=-"
+        echo "   gcloud secrets create qdrant-api-key --data-file=-"
+        echo ""
+        echo "2. Grant access to secrets:"
+        echo "   gcloud secrets add-iam-policy-binding marker-api-key --member=\"serviceAccount:${{ secrets.SERVICE_ACCOUNT }}\" --role=\"roles/secretmanager.secretAccessor\""
+        echo "   gcloud secrets add-iam-policy-binding qdrant-api-key --member=\"serviceAccount:${{ secrets.SERVICE_ACCOUNT }}\" --role=\"roles/secretmanager.secretAccessor\""

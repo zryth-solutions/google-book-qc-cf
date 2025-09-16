@@ -6,6 +6,7 @@ on:
     paths:
       - 'split_pdf_service/**'
       - 'book_extractor_service/**'
+      - 'rag_ingestion_service/**'
       - 'utils/**'
       - 'requirements.txt'
       - 'config.yaml'
@@ -162,9 +163,85 @@ jobs:
           --location $REGION \
           --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 
+  deploy-rag-ingestion:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: 'projects/282136454082/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+        service_account: 'pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install gcloud beta components
+      run: gcloud components install beta --quiet
+
+    - name: Configure Docker for Artifact Registry
+      run: gcloud auth configure-docker $REGION-docker.pkg.dev
+
+    - name: Build and Deploy RAG Ingestion Service
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 3
+        retry_wait_seconds: 60
+        command: |
+          docker build \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA \
+            -f rag_ingestion_service/Dockerfile .
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA
+        
+    - name: Create/Update RAG Ingestion Cloud Run Job
+      run: |
+        # Try to update existing job first, if it fails, create a new one
+        if gcloud run jobs describe rag-ingestion-job --region=$REGION >/dev/null 2>&1; then
+          echo "Job exists, updating..."
+          gcloud beta run jobs update rag-ingestion-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://qdrant.tech \
+            --max-retries=3 \
+            --parallelism=1 \
+            --tasks=1 \
+            --task-timeout=3600s \
+            --memory=2Gi \
+            --cpu=2
+        else
+          echo "Job doesn't exist, creating..."
+          gcloud beta run jobs create rag-ingestion-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://qdrant.tech \
+            --max-retries=3 \
+            --parallelism=1 \
+            --tasks=1 \
+            --task-timeout=3600s \
+            --memory=2Gi \
+            --cpu=2
+        fi
+        
+        # Deploy workflow
+        gcloud workflows deploy rag-ingestion-workflow \
+          --source rag_ingestion_service/rag_ingestion_workflow.yaml \
+          --location $REGION \
+          --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+
   summary:
     runs-on: ubuntu-latest
-    needs: [deploy-split-pdf, deploy-book-extractor]
+    needs: [deploy-split-pdf, deploy-book-extractor, deploy-rag-ingestion]
     if: always()
     
     steps:
@@ -173,6 +250,7 @@ jobs:
         echo "🎉 Deployment Summary:"
         echo "✅ PDF Processor Job: pdf-processor-job"
         echo "✅ Book Extractor Job: book-extractor-job"
-        echo "✅ Workflows: pdf-processing-workflow, book-extraction-workflow"
+        echo "✅ RAG Ingestion Job: rag-ingestion-job"
+        echo "✅ Workflows: pdf-processing-workflow, book-extraction-workflow, rag-ingestion-workflow"
         echo "📍 Region: $REGION"
         echo "📍 Project: $PROJECT_ID"

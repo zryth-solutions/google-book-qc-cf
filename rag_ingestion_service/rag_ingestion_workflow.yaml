@@ -1,0 +1,108 @@
+main:
+  params: [pdf_path, book_name, chapter]
+  
+  steps:
+    # Set default values
+    - set_defaults:
+        assign:
+          - bucket_name: "llm-books"
+          - project_id: "book-qc-cf"
+          - region: "us-central1"
+          - update_existing: true
+    
+    # Execute RAG ingestion job using HTTP connector
+    - process_rag_job:
+        call: http.post
+        args:
+          url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/rag-ingestion-job:run"}
+          auth:
+            type: OAuth2
+          body:
+            overrides:
+              containerOverrides:
+                - args: 
+                    - "process"
+                    - "--pdf-path"
+                    - ${pdf_path.pdf_path}
+                    - "--book-name"
+                    - ${book_name.book_name}
+                    - "--update-existing"
+                  env:
+                    - name: PROJECT_ID
+                      value: ${project_id}
+                    - name: BUCKET_NAME
+                      value: ${bucket_name}
+                    - name: REGION
+                      value: ${region}
+                    - name: MARKER_API_KEY
+                      valueFrom:
+                        secretKeyRef:
+                          name: marker-api-key
+                          key: key
+                    - name: QDRANT_API_KEY
+                      valueFrom:
+                        secretKeyRef:
+                          name: qdrant-api-key
+                          key: key
+                    - name: QDRANT_URL
+                      value: "https://qdrant.tech"
+        result: process_job
+    
+    # Add chapter argument if provided
+    - add_chapter_args:
+        if: ${chapter != null}
+        then:
+          - call: http.post
+            args:
+              url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/rag-ingestion-job:run"}
+              auth:
+                type: OAuth2
+              body:
+                overrides:
+                  containerOverrides:
+                    - args: 
+                        - "process"
+                        - "--pdf-path"
+                        - ${pdf_path.pdf_path}
+                        - "--book-name"
+                        - ${book_name.book_name}
+                        - "--chapter"
+                        - ${string(chapter)}
+                        - "--update-existing"
+                      env:
+                        - name: PROJECT_ID
+                          value: ${project_id}
+                        - name: BUCKET_NAME
+                          value: ${bucket_name}
+                        - name: REGION
+                          value: ${region}
+                        - name: MARKER_API_KEY
+                          valueFrom:
+                            secretKeyRef:
+                              name: marker-api-key
+                              key: key
+                        - name: QDRANT_API_KEY
+                          valueFrom:
+                            secretKeyRef:
+                              name: qdrant-api-key
+                              key: key
+                        - name: QDRANT_URL
+                          value: "https://qdrant.tech"
+            result: process_job
+    
+    # Wait for job completion
+    - wait_for_completion:
+        call: sys.sleep
+        args:
+          seconds: 60
+    
+    # Return success result
+    - return_success:
+        return:
+          status: "success"
+          message: "RAG ingestion and vector storage completed successfully"
+          pdf_path: ${pdf_path}
+          book_name: ${book_name}
+          chapter: ${chapter}
+          job_execution: ${process_job}
+          bucket_name: ${bucket_name}

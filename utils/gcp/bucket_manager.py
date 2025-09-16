@@ -218,3 +218,46 @@ class BucketManager:
         except Exception as e:
             logger.error(f"Error listing files in folder {folder_path}: {str(e)}")
             return []
+    
+    def upload_text(self, content: str, gcs_path: str, content_type: str = "text/plain") -> bool:
+        """
+        Upload text content to GCS bucket
+        
+        Args:
+            content: Text content to upload
+            gcs_path: Destination path in GCS bucket
+            content_type: MIME type of the content
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            blob = self.bucket.blob(gcs_path)
+            blob.upload_from_string(content, content_type=content_type)
+            logger.info(f"Uploaded text content to gs://{self.bucket_name}/{gcs_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to upload text content to {gcs_path}: {str(e)}")
+            return False
+    
+    def download_text(self, gcs_path: str) -> Optional[str]:
+        """
+        Download text content from GCS bucket
+        
+        Args:
+            gcs_path: Source path in GCS bucket
+            
+        Returns:
+            str: Text content or None if failed
+        """
+        try:
+            blob = self.bucket.blob(gcs_path)
+            content = blob.download_as_text()
+            logger.info(f"Downloaded text content from gs://{self.bucket_name}/{gcs_path}")
+            return content
+        except NotFound:
+            logger.error(f"Text file not found: gs://{self.bucket_name}/{gcs_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to download text content from {gcs_path}: {str(e)}")
+            return None
