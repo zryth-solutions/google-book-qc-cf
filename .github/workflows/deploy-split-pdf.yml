@@ -98,7 +98,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         else
           echo "Job doesn't exist, creating..."
           gcloud run jobs create $SERVICE-job \
@@ -109,7 +110,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         fi
     
     - name: Deploy GCP Workflow

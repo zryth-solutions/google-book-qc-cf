@@ -67,7 +67,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         else
           echo "Job doesn't exist, creating..."
           gcloud run jobs create pdf-processor-job \
@@ -78,7 +79,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         fi
         
         # Deploy workflow
@@ -136,7 +138,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         else
           echo "Job doesn't exist, creating..."
           gcloud run jobs create book-extractor-job \
@@ -147,7 +150,8 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s
+            --task-timeout=604800s \
+            --launch-stage=BETA
         fi
         
         # Deploy workflow
