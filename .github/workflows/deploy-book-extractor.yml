@@ -61,7 +61,7 @@ jobs:
         # Try to update existing job first, if it fails, create a new one
         if gcloud run jobs describe $SERVICE_NAME-job --region=$REGION >/dev/null 2>&1; then
           echo "Job exists, updating..."
-          gcloud run jobs update $SERVICE_NAME-job \
+          gcloud beta run jobs update $SERVICE_NAME-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -69,11 +69,10 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         else
           echo "Job doesn't exist, creating..."
-          gcloud run jobs create $SERVICE_NAME-job \
+          gcloud beta run jobs create $SERVICE_NAME-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -81,8 +80,7 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         fi
 
     - name: Wait for Cloud Run Job to stabilize

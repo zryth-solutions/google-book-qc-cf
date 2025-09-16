@@ -59,7 +59,7 @@ jobs:
         # Try to update existing job first, if it fails, create a new one
         if gcloud run jobs describe pdf-processor-job --region=$REGION >/dev/null 2>&1; then
           echo "Job exists, updating..."
-          gcloud run jobs update pdf-processor-job \
+          gcloud beta run jobs update pdf-processor-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -67,11 +67,10 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         else
           echo "Job doesn't exist, creating..."
-          gcloud run jobs create pdf-processor-job \
+          gcloud beta run jobs create pdf-processor-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/pdf-processor/pdf-processor:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -79,8 +78,7 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         fi
         
         # Deploy workflow
@@ -130,7 +128,7 @@ jobs:
         # Try to update existing job first, if it fails, create a new one
         if gcloud run jobs describe book-extractor-job --region=$REGION >/dev/null 2>&1; then
           echo "Job exists, updating..."
-          gcloud run jobs update book-extractor-job \
+          gcloud beta run jobs update book-extractor-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -138,11 +136,10 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         else
           echo "Job doesn't exist, creating..."
-          gcloud run jobs create book-extractor-job \
+          gcloud beta run jobs create book-extractor-job \
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/book-extractor/book-extractor:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
@@ -150,8 +147,7 @@ jobs:
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
-            --task-timeout=604800s \
-            --launch-stage=BETA
+            --task-timeout=604800s
         fi
         
         # Deploy workflow
