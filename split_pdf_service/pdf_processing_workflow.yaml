@@ -19,7 +19,12 @@ main:
           body:
             overrides:
               containerOverrides:
-                - args: ["process", "--pdf-path", pdf_path, "--bucket-name", bucket_name]
+                - args: 
+                    - "process"
+                    - "--pdf-path"
+                    - ${pdf_path.pdf_path}
+                    - "--bucket-name"
+                    - ${bucket_name}
                   env:
                     - name: PROJECT_ID
                       value: ${project_id}
