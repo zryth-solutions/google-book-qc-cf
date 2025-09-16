@@ -202,7 +202,7 @@ class BucketManager:
                 folder_path += '/'
             
             # List all blobs with the folder prefix
-            blobs = self.client.list_blobs(self.bucket, prefix=folder_path)
+            blobs = self.client.list_blobs(self.bucket_name, prefix=folder_path)
             
             # Filter for files with specified extension
             pdf_files = []
