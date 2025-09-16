@@ -9,11 +9,10 @@ main:
           - project_id: "book-qc-cf"
           - region: "us-central1"
           - update_existing: true
-          - pdf_path: ${input_data.pdf_path}
+          - folder_path: ${input_data.folder_path}
           - book_name: ${input_data.book_name}
-          - chapter: null
     
-    # Execute RAG ingestion job using HTTP connector
+    # Execute RAG ingestion job using HTTP connector for folder processing
     - process_rag_job:
         call: http.post
         args:
@@ -25,8 +24,8 @@ main:
               containerOverrides:
                 - args: 
                     - "process"
-                    - "--pdf-path"
-                    - ${pdf_path}
+                    - "--folder-path"
+                    - ${folder_path}
                     - "--book-name"
                     - ${book_name}
                     - "--update-existing"
@@ -43,15 +42,14 @@ main:
     - wait_for_completion:
         call: sys.sleep
         args:
-          seconds: 60
+          seconds: 120
     
     # Return success result
     - return_success:
         return:
           status: "success"
-          message: "RAG ingestion and vector storage completed successfully"
-          pdf_path: ${pdf_path}
+          message: "RAG ingestion and vector storage completed successfully for folder"
+          folder_path: ${folder_path}
           book_name: ${book_name}
-          chapter: ${chapter}
           job_execution: ${process_job}
           bucket_name: ${bucket_name}

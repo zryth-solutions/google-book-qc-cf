@@ -261,3 +261,101 @@ class BucketManager:
         except Exception as e:
             logger.error(f"Failed to download text content from {gcs_path}: {str(e)}")
             return None
+    
+    def list_files_in_folder(self, folder_path: str, file_extension: str = None) -> List[str]:
+        """
+        List all files in a GCS folder
+        
+        Args:
+            folder_path: Path to the folder in GCS bucket (without leading slash)
+            file_extension: Optional file extension filter (e.g., '.pdf', '.md')
+            
+        Returns:
+            List[str]: List of file paths in the folder
+        """
+        try:
+            # Ensure folder_path doesn't start with slash
+            if folder_path.startswith('/'):
+                folder_path = folder_path[1:]
+            
+            # Add trailing slash if not present
+            if not folder_path.endswith('/'):
+                folder_path += '/'
+            
+            blobs = self.bucket.list_blobs(prefix=folder_path)
+            files = []
+            
+            for blob in blobs:
+                # Skip if it's a directory (ends with /)
+                if blob.name.endswith('/'):
+                    continue
+                
+                # Apply file extension filter if provided
+                if file_extension and not blob.name.lower().endswith(file_extension.lower()):
+                    continue
+                
+                files.append(f"gs://{self.bucket_name}/{blob.name}")
+            
+            logger.info(f"Found {len(files)} files in folder gs://{self.bucket_name}/{folder_path}")
+            return files
+            
+        except Exception as e:
+            logger.error(f"Failed to list files in folder {folder_path}: {str(e)}")
+            return []
+    
+    def get_folder_structure(self, folder_path: str) -> Dict[str, Any]:
+        """
+        Get the folder structure with file information
+        
+        Args:
+            folder_path: Path to the folder in GCS bucket
+            
+        Returns:
+            Dict containing folder structure and file metadata
+        """
+        try:
+            # Ensure folder_path doesn't start with slash
+            if folder_path.startswith('/'):
+                folder_path = folder_path[1:]
+            
+            # Add trailing slash if not present
+            if not folder_path.endswith('/'):
+                folder_path += '/'
+            
+            blobs = self.bucket.list_blobs(prefix=folder_path)
+            structure = {
+                'folder_path': f"gs://{self.bucket_name}/{folder_path}",
+                'files': [],
+                'subfolders': set()
+            }
+            
+            for blob in blobs:
+                # Get relative path from folder
+                relative_path = blob.name[len(folder_path):]
+                
+                if relative_path.endswith('/'):
+                    # It's a subfolder
+                    subfolder = relative_path.rstrip('/')
+                    if subfolder:
+                        structure['subfolders'].add(subfolder)
+                else:
+                    # It's a file
+                    file_info = {
+                        'name': relative_path,
+                        'full_path': f"gs://{self.bucket_name}/{blob.name}",
+                        'size': blob.size,
+                        'created': blob.time_created.isoformat() if blob.time_created else None,
+                        'updated': blob.updated.isoformat() if blob.updated else None,
+                        'content_type': blob.content_type
+                    }
+                    structure['files'].append(file_info)
+            
+            # Convert set to list for JSON serialization
+            structure['subfolders'] = list(structure['subfolders'])
+            
+            logger.info(f"Retrieved folder structure for gs://{self.bucket_name}/{folder_path}")
+            return structure
+            
+        except Exception as e:
+            logger.error(f"Failed to get folder structure for {folder_path}: {str(e)}")
+            return {'folder_path': f"gs://{self.bucket_name}/{folder_path}", 'files': [], 'subfolders': []}

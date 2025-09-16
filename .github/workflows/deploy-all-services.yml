@@ -215,7 +215,7 @@ jobs:
             --max-retries=3 \
             --parallelism=1 \
             --tasks=1 \
-            --task-timeout=3600s \
+            --task-timeout=604800s \
             --memory=2Gi \
             --cpu=2
         else
@@ -228,14 +228,19 @@ jobs:
             --max-retries=3 \
             --parallelism=1 \
             --tasks=1 \
-            --task-timeout=3600s \
+            --task-timeout=604800s \
             --memory=2Gi \
             --cpu=2
         fi
         
-        # Deploy workflow
+        # Deploy workflows
         gcloud workflows deploy rag-ingestion-workflow \
           --source rag_ingestion_service/rag_ingestion_workflow.yaml \
+          --location $REGION \
+          --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+          
+        gcloud workflows deploy rag-ingestion-folder-workflow \
+          --source rag_ingestion_service/rag_ingestion_folder_workflow.yaml \
           --location $REGION \
           --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 

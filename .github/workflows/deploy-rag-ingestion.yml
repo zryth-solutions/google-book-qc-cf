@@ -136,7 +136,7 @@ spec:
                   key: key
             args: ["process", "--help"]
           restartPolicy: Never
-          timeoutSeconds: 3600
+          timeoutSeconds: 604800
       backoffLimit: 3
       completions: 1
       parallelism: 1
@@ -185,7 +185,7 @@ spec:
                   key: key
             args: ["process", "--help"]
           restartPolicy: Never
-          timeoutSeconds: 3600
+          timeoutSeconds: 604800
       backoffLimit: 3
       completions: 1
       parallelism: 1
@@ -199,7 +199,12 @@ EOF
           --source=rag_ingestion_service/rag_ingestion_workflow.yaml \
           --location=${{ env.REGION }} \
           --project=${{ env.PROJECT_ID }}
-        echo "✅ Workflow deployed successfully!"
+          
+        gcloud workflows deploy rag-ingestion-folder-workflow \
+          --source=rag_ingestion_service/rag_ingestion_folder_workflow.yaml \
+          --location=${{ env.REGION }} \
+          --project=${{ env.PROJECT_ID }}
+        echo "✅ Workflows deployed successfully!"
     
     - name: Show Output
       run: |

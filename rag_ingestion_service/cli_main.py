@@ -157,6 +157,105 @@ def process_pdf_to_vector(pdf_path: str, book_name: str, chapter: Optional[int] 
             "step": "unknown"
         }
 
+def process_folder_to_vector(folder_path: str, book_name: str, 
+                           update_existing: bool = False) -> Dict[str, Any]:
+    """
+    Process all PDFs in a folder: PDFs -> Markdown -> Chunks -> Embeddings -> Vector Store
+    
+    Args:
+        folder_path: Path to folder containing PDF files (GCS)
+        book_name: Name of the book
+        update_existing: Whether to update existing collection
+        
+    Returns:
+        Dict containing processing results
+    """
+    logger.info(f"Starting folder processing for {folder_path}")
+    
+    # Initialize bucket manager
+    bucket_manager = BucketManager(BUCKET_NAME)
+    
+    # List all PDF files in the folder
+    pdf_files = bucket_manager.list_files_in_folder(folder_path, '.pdf')
+    
+    if not pdf_files:
+        logger.warning(f"No PDF files found in folder {folder_path}")
+        return {
+            'status': 'warning',
+            'message': f'No PDF files found in folder {folder_path}',
+            'processed_files': [],
+            'failed_files': []
+        }
+    
+    logger.info(f"Found {len(pdf_files)} PDF files to process")
+    
+    results = {
+        'status': 'success',
+        'message': f'Processed {len(pdf_files)} PDF files from folder {folder_path}',
+        'processed_files': [],
+        'failed_files': [],
+        'folder_path': folder_path,
+        'book_name': book_name
+    }
+    
+    # Process each PDF file
+    for i, pdf_path in enumerate(pdf_files, 1):
+        try:
+            logger.info(f"Processing file {i}/{len(pdf_files)}: {pdf_path}")
+            
+            # Extract chapter number from filename if possible
+            # Assuming filename format like "chapter_1.pdf" or "01.pdf"
+            import re
+            filename = pdf_path.split('/')[-1]
+            chapter_match = re.search(r'chapter[_\s]*(\d+)', filename, re.IGNORECASE)
+            if not chapter_match:
+                chapter_match = re.search(r'^(\d+)', filename)
+            
+            chapter = int(chapter_match.group(1)) if chapter_match else None
+            
+            # Process the PDF
+            file_result = process_pdf_to_vector(
+                pdf_path, 
+                book_name, 
+                chapter, 
+                update_existing
+            )
+            
+            if file_result.get('status') == 'success':
+                results['processed_files'].append({
+                    'file': pdf_path,
+                    'chapter': chapter,
+                    'result': file_result
+                })
+                logger.info(f"Successfully processed {pdf_path}")
+            else:
+                results['failed_files'].append({
+                    'file': pdf_path,
+                    'chapter': chapter,
+                    'error': file_result.get('message', 'Unknown error')
+                })
+                logger.error(f"Failed to process {pdf_path}: {file_result.get('message', 'Unknown error')}")
+                
+        except Exception as e:
+            error_msg = f"Error processing {pdf_path}: {str(e)}"
+            logger.error(error_msg)
+            results['failed_files'].append({
+                'file': pdf_path,
+                'chapter': None,
+                'error': error_msg
+            })
+    
+    # Update overall status based on results
+    if results['failed_files'] and not results['processed_files']:
+        results['status'] = 'error'
+        results['message'] = f'All {len(pdf_files)} files failed to process'
+    elif results['failed_files']:
+        results['status'] = 'partial'
+        results['message'] = f'Processed {len(results["processed_files"])}/{len(pdf_files)} files successfully'
+    
+    logger.info(f"Folder processing completed. Status: {results['status']}")
+    return results
+
 def search_vectors(book_name: str, query: str, chapter: Optional[int] = None, 
                   limit: int = 10, score_threshold: float = 0.7) -> Dict[str, Any]:
     """
@@ -251,6 +350,7 @@ def main():
     
     # Common arguments
     parser.add_argument('--pdf-path', help='Path to PDF file (for process operation)')
+    parser.add_argument('--folder-path', help='Path to folder containing PDF files (for process operation)')
     parser.add_argument('--book-name', required=True, help='Name of the book')
     parser.add_argument('--chapter', type=int, help='Chapter number (optional)')
     parser.add_argument('--update-existing', action='store_true', 
@@ -277,16 +377,29 @@ def main():
     
     try:
         if args.operation == 'process':
-            if not args.pdf_path:
-                logger.error("--pdf-path is required for process operation")
+            if not args.pdf_path and not args.folder_path:
+                logger.error("Either --pdf-path or --folder-path is required for process operation")
                 sys.exit(1)
             
-            result = process_pdf_to_vector(
-                args.pdf_path, 
-                args.book_name, 
-                args.chapter, 
-                args.update_existing
-            )
+            if args.pdf_path and args.folder_path:
+                logger.error("Cannot specify both --pdf-path and --folder-path. Choose one.")
+                sys.exit(1)
+            
+            if args.pdf_path:
+                # Process single PDF
+                result = process_pdf_to_vector(
+                    args.pdf_path, 
+                    args.book_name, 
+                    args.chapter, 
+                    args.update_existing
+                )
+            else:
+                # Process folder
+                result = process_folder_to_vector(
+                    args.folder_path,
+                    args.book_name,
+                    args.update_existing
+                )
             
         elif args.operation == 'search':
             if not args.query:
