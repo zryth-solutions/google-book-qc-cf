@@ -1,36 +1,31 @@
 """
-PDF to Markdown Converter using Marker API
+PDF to Markdown Converter using Marker PDF
 """
 
 import os
-import requests
 import tempfile
 import logging
+import subprocess
 from typing import Optional, Dict, Any
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 class PDFToMarkdownConverter:
-    """Converts PDF files to markdown using Marker API"""
+    """Converts PDF files to markdown using Marker PDF"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str = None):
         """
-        Initialize the converter with Marker API key
+        Initialize the converter with Marker PDF
         
         Args:
-            api_key: Marker API key
+            api_key: Not used for Marker PDF (kept for compatibility)
         """
-        self.api_key = api_key
-        self.base_url = "https://api.marker.io/v1"
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        self.api_key = api_key  # Not used but kept for compatibility
     
     def convert_pdf_to_markdown(self, pdf_path: str, output_path: Optional[str] = None) -> Dict[str, Any]:
         """
-        Convert PDF to markdown using Marker API
+        Convert PDF to markdown using Marker PDF
         
         Args:
             pdf_path: Path to the PDF file (local or GCS)
@@ -40,24 +35,16 @@ class PDFToMarkdownConverter:
             Dict containing conversion result and metadata
         """
         try:
-            # Upload PDF to Marker API
-            upload_result = self._upload_pdf(pdf_path)
-            if not upload_result["success"]:
+            # Download PDF from GCS if needed
+            local_pdf_path = self._prepare_pdf(pdf_path)
+            if not local_pdf_path:
                 return {
                     "success": False,
-                    "error": upload_result["error"]
+                    "error": "Failed to prepare PDF file"
                 }
             
-            # Convert PDF to markdown
-            conversion_result = self._convert_to_markdown(upload_result["file_id"])
-            if not conversion_result["success"]:
-                return {
-                    "success": False,
-                    "error": conversion_result["error"]
-                }
-            
-            # Download markdown content
-            markdown_content = self._download_markdown(conversion_result["markdown_id"])
+            # Convert PDF to markdown using Marker PDF
+            markdown_content = self._convert_with_marker(local_pdf_path)
             if not markdown_content["success"]:
                 return {
                     "success": False,
@@ -74,8 +61,7 @@ class PDFToMarkdownConverter:
                 "success": True,
                 "markdown_content": markdown_content["content"],
                 "metadata": {
-                    "file_id": upload_result["file_id"],
-                    "markdown_id": conversion_result["markdown_id"],
+                    "source_pdf": pdf_path,
                     "content_length": len(markdown_content["content"])
                 }
             }
@@ -87,8 +73,8 @@ class PDFToMarkdownConverter:
                 "error": str(e)
             }
     
-    def _upload_pdf(self, pdf_path: str) -> Dict[str, Any]:
-        """Upload PDF file to Marker API"""
+    def _prepare_pdf(self, pdf_path: str) -> Optional[str]:
+        """Prepare PDF file for processing (download from GCS if needed)"""
         try:
             # Check if it's a GCS path
             if pdf_path.startswith('gs://'):
@@ -102,88 +88,64 @@ class PDFToMarkdownConverter:
                 
                 with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
                     blob.download_to_filename(temp_file.name)
-                    pdf_path = temp_file.name
-            
-            # Upload to Marker API
-            with open(pdf_path, 'rb') as f:
-                files = {'file': f}
-                response = requests.post(
-                    f"{self.base_url}/upload",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    files=files
+                    return temp_file.name
+            else:
+                # Local file path
+                return pdf_path
+                
+        except Exception as e:
+            logger.error(f"Error preparing PDF: {str(e)}")
+            return None
+    
+    def _convert_with_marker(self, pdf_path: str) -> Dict[str, Any]:
+        """Convert PDF to markdown using Marker PDF"""
+        try:
+            # Create temporary output directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Run Marker PDF conversion
+                cmd = [
+                    "python", "-m", "marker.scripts.convert_single",
+                    pdf_path,
+                    "--output_dir", temp_dir
+                ]
+                
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minute timeout
                 )
-            
-            if response.status_code == 200:
-                result = response.json()
+                
+                if result.returncode != 0:
+                    return {
+                        "success": False,
+                        "error": f"Marker conversion failed: {result.stderr}"
+                    }
+                
+                # Find the generated markdown file
+                output_files = list(Path(temp_dir).glob("*.md"))
+                if not output_files:
+                    return {
+                        "success": False,
+                        "error": "No markdown file generated"
+                    }
+                
+                # Read the markdown content
+                with open(output_files[0], 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
                 return {
                     "success": True,
-                    "file_id": result["file_id"]
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Upload failed: {response.status_code} - {response.text}"
+                    "content": content
                 }
                 
-        except Exception as e:
+        except subprocess.TimeoutExpired:
             return {
                 "success": False,
-                "error": f"Upload error: {str(e)}"
+                "error": "Marker conversion timed out"
             }
-    
-    def _convert_to_markdown(self, file_id: str) -> Dict[str, Any]:
-        """Convert uploaded PDF to markdown"""
-        try:
-            response = requests.post(
-                f"{self.base_url}/convert",
-                headers=self.headers,
-                json={
-                    "file_id": file_id,
-                    "output_format": "markdown",
-                    "include_images": True,
-                    "image_descriptions": True
-                }
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return {
-                    "success": True,
-                    "markdown_id": result["markdown_id"]
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Conversion failed: {response.status_code} - {response.text}"
-                }
-                
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Conversion error: {str(e)}"
-            }
-    
-    def _download_markdown(self, markdown_id: str) -> Dict[str, Any]:
-        """Download converted markdown content"""
-        try:
-            response = requests.get(
-                f"{self.base_url}/download/{markdown_id}",
-                headers=self.headers
-            )
-            
-            if response.status_code == 200:
-                return {
-                    "success": True,
-                    "content": response.text
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": f"Download failed: {response.status_code} - {response.text}"
-                }
-                
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Download error: {str(e)}"
+                "error": str(e)
             }
