@@ -5,6 +5,7 @@ Embedding Generator using Google Vertex AI
 import logging
 from typing import List, Dict, Any, Optional
 import numpy as np
+import vertexai
 from google.cloud import aiplatform
 from vertexai.preview.language_models import TextEmbeddingModel
 
@@ -23,7 +24,7 @@ class EmbeddingGenerator:
         """
         self.project_id = project_id
         self.location = location
-        self.model_name = "textembedding-gecko@001"
+        self.model_name = "text-embedding-004"
         
         # Initialize Vertex AI
         vertexai.init(project=project_id, location=location)

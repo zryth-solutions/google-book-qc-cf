@@ -14,21 +14,39 @@ logger = logging.getLogger(__name__)
 class VectorStore:
     """Manages vector storage using Qdrant"""
     
-    def __init__(self, api_key: str, url: str = "https://qdrant.tech"):
+    def __init__(self, api_key: str, url: str = None):
         """
         Initialize the vector store
         
         Args:
             api_key: Qdrant API key
-            url: Qdrant cluster URL
+            url: Qdrant cluster URL (if None, will try to extract from API key)
         """
         self.api_key = api_key
+        
+        # If no URL provided, try to use Qdrant Cloud with API key
+        if not url or url == "https://qdrant.tech":
+            # For Qdrant Cloud, extract cluster URL from API key or use default cloud URL
+            url = "https://cloud.qdrant.io"
+            logger.info(f"Using Qdrant Cloud URL: {url}")
+        
         self.url = url
-        self.client = QdrantClient(
-            url=url,
-            api_key=api_key
-        )
-        self.embedding_dimension = 768  # textembedding-gecko@001 dimension
+        
+        try:
+            self.client = QdrantClient(
+                url=url,
+                api_key=api_key,
+                timeout=30  # 30 second timeout
+            )
+            logger.info(f"Connected to Qdrant at {url}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Qdrant at {url}: {str(e)}")
+            raise
+        
+        self.embedding_dimension = 768  # text-embedding-004 dimension
+        
+        # Test connection
+        self._test_connection()
     
     def create_collection(self, collection_name: str, book_name: str) -> bool:
         """
@@ -50,7 +68,7 @@ class VectorStore:
                 logger.info(f"Collection {collection_name} already exists")
                 return True
             
-            # Create collection
+            # Create collection with basic configuration
             self.client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(
@@ -59,24 +77,22 @@ class VectorStore:
                 )
             )
             
-            # Add collection metadata
-            self.client.update_collection(
-                collection_name=collection_name,
-                collection_config=models.CollectionConfig(
-                    params=models.CollectionParams(
-                        vectors=VectorParams(
-                            size=self.embedding_dimension,
-                            distance=Distance.COSINE
-                        )
-                    )
-                )
-            )
-            
             logger.info(f"Created collection {collection_name} for book {book_name}")
             return True
             
         except Exception as e:
             logger.error(f"Error creating collection {collection_name}: {str(e)}")
+            return False
+    
+    def _test_connection(self) -> bool:
+        """Test connection to Qdrant"""
+        try:
+            # Try to get cluster info
+            info = self.client.get_collections()
+            logger.info(f"Successfully connected to Qdrant. Found {len(info.collections)} existing collections.")
+            return True
+        except Exception as e:
+            logger.error(f"Qdrant connection test failed: {str(e)}")
             return False
     
     def upsert_chunks(self, collection_name: str, chunks: List[Any], embeddings: List[List[float]]) -> bool:

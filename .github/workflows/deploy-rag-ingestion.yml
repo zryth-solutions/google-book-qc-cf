@@ -123,18 +123,12 @@ spec:
             - name: REGION
               value: '$REGION'
             - name: QDRANT_URL
-              value: 'https://qdrant.tech'
+              value: 'https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io'
             - name: MARKER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: marker-api-key
-                  key: key
+              value: '${{ secrets.MARKER_API_KEY }}'
             - name: QDRANT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: qdrant-api-key
-                  key: key
-            args: ["process", "--help"]
+              value: '${{ secrets.QDRANT_API_KEY }}'
+            args: ["--help"]
           restartPolicy: Never
           timeoutSeconds: 604800
       backoffLimit: 3
@@ -172,18 +166,12 @@ spec:
             - name: REGION
               value: '$REGION'
             - name: QDRANT_URL
-              value: 'https://qdrant.tech'
+              value: 'https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io'
             - name: MARKER_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: marker-api-key
-                  key: key
+              value: '${{ secrets.MARKER_API_KEY }}'
             - name: QDRANT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: qdrant-api-key
-                  key: key
-            args: ["process", "--help"]
+              value: '${{ secrets.QDRANT_API_KEY }}'
+            args: ["--help"]
           restartPolicy: Never
           timeoutSeconds: 604800
       backoffLimit: 3
@@ -215,10 +203,5 @@ EOF
         echo "Region: ${{ env.REGION }}"
         echo ""
         echo "📝 Next steps:"
-        echo "1. Create secrets for API keys:"
-        echo "   gcloud secrets create marker-api-key --data-file=-"
-        echo "   gcloud secrets create qdrant-api-key --data-file=-"
-        echo ""
-        echo "2. Grant access to secrets:"
-        echo "   gcloud secrets add-iam-policy-binding marker-api-key --member=\"serviceAccount:${{ secrets.SERVICE_ACCOUNT }}\" --role=\"roles/secretmanager.secretAccessor\""
-        echo "   gcloud secrets add-iam-policy-binding qdrant-api-key --member=\"serviceAccount:${{ secrets.SERVICE_ACCOUNT }}\" --role=\"roles/secretmanager.secretAccessor\""
+        echo "✅ API keys are configured via GitHub repository secrets"
+        echo "✅ Cloud Run Job is ready to process workflows"

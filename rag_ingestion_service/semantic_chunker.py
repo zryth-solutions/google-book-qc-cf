@@ -18,6 +18,11 @@ class Chunk:
     start_position: int
     end_position: int
     metadata: Dict[str, Any]
+    
+    @property
+    def id(self) -> str:
+        """Generate unique ID for the chunk"""
+        return f"chunk_{self.chunk_index}_{hash(self.content) % 10000:04d}"
 
 class SemanticChunker:
     """Performs semantic chunking on markdown content"""
@@ -215,10 +220,13 @@ class SemanticChunker:
         if chapter is not None:
             metadata['chapter'] = chapter
         
-        return Chunk(
+        chunk = Chunk(
             content=content,
             chunk_index=chunk_index,
             start_position=position,
             end_position=position + len(content),
             metadata=metadata
         )
+        # Add chapter as attribute for compatibility
+        chunk.chapter = chapter
+        return chunk

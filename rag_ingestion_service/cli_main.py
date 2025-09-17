@@ -17,6 +17,7 @@ from pdf_to_markdown import PDFToMarkdownConverter
 from semantic_chunker import SemanticChunker
 from embedding_generator import EmbeddingGenerator
 from vector_store import VectorStore
+from embeddings_cache import EmbeddingsCache
 
 # Add parent directory to path for utils import
 import sys
@@ -35,7 +36,7 @@ BUCKET_NAME = os.getenv('BUCKET_NAME', 'llm-books')
 REGION = os.getenv('REGION', 'us-central1')
 MARKER_API_KEY = os.getenv('MARKER_API_KEY')
 QDRANT_API_KEY = os.getenv('QDRANT_API_KEY')
-QDRANT_URL = os.getenv('QDRANT_URL', 'https://qdrant.tech')
+QDRANT_URL = os.getenv('QDRANT_URL', 'https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io')
 
 def process_pdf_to_vector(pdf_path: str, book_name: str, chapter: Optional[int] = None, 
                          update_existing: bool = False) -> Dict[str, Any]:
@@ -56,8 +57,19 @@ def process_pdf_to_vector(pdf_path: str, book_name: str, chapter: Optional[int] 
         pdf_converter = PDFToMarkdownConverter(MARKER_API_KEY)
         chunker = SemanticChunker()
         embedding_generator = EmbeddingGenerator(PROJECT_ID, REGION)
-        vector_store = VectorStore(QDRANT_API_KEY, QDRANT_URL)
+        embeddings_cache = EmbeddingsCache(PROJECT_ID, BUCKET_NAME)
         bucket_manager = BucketManager(PROJECT_ID, BUCKET_NAME)
+        
+        # Initialize vector store (with error handling)
+        vector_store = None
+        vector_store_error = None
+        try:
+            vector_store = VectorStore(QDRANT_API_KEY, QDRANT_URL)
+            logger.info("✅ Vector store connection successful")
+        except Exception as e:
+            vector_store_error = str(e)
+            logger.warning(f"⚠️ Vector store connection failed: {vector_store_error}")
+            logger.info("📦 Will use embeddings cache only")
         
         # Step 1: Convert PDF to Markdown
         logger.info(f"Converting PDF to markdown: {pdf_path}")
@@ -100,53 +112,83 @@ def process_pdf_to_vector(pdf_path: str, book_name: str, chapter: Optional[int] 
                 "step": "chunking"
             }
         
-        # Step 4: Generate embeddings
-        logger.info(f"Generating embeddings for {len(chunks)} chunks")
-        chunk_texts = [chunk.content for chunk in chunks]
-        embeddings = embedding_generator.generate_embeddings(chunk_texts)
+        # Step 4: Check embeddings cache first
+        logger.info(f"Checking embeddings cache for {len(chunks)} chunks")
+        cached_result = embeddings_cache.load_embeddings(book_name, chapter, chunks)
+        cache_saved = False
         
-        if not embeddings:
-            return {
-                "status": "error",
-                "error": "Failed to generate embeddings",
-                "step": "embedding_generation"
-            }
+        if cached_result:
+            chunks, embeddings = cached_result
+            logger.info(f"✅ Using cached embeddings ({len(embeddings)} embeddings)")
+            cache_saved = True  # Already cached
+        else:
+            # Step 4a: Generate embeddings
+            logger.info(f"🔄 Generating new embeddings for {len(chunks)} chunks")
+            chunk_texts = [chunk.content for chunk in chunks]
+            embeddings = embedding_generator.generate_embeddings(chunk_texts)
+            
+            if not embeddings:
+                return {
+                    "status": "error",
+                    "error": "Failed to generate embeddings",
+                    "step": "embedding_generation"
+                }
+            
+            # Step 4b: Save embeddings to cache
+            logger.info("💾 Saving embeddings to cache")
+            cache_saved = embeddings_cache.save_embeddings(book_name, chapter, chunks, embeddings)
+            if cache_saved:
+                logger.info("✅ Embeddings cached successfully")
+            else:
+                logger.warning("⚠️ Failed to cache embeddings (continuing anyway)")
         
-        # Step 5: Create/Update vector collection
-        collection_name = f"book_{book_name.lower().replace(' ', '_')}"
-        if chapter is not None:
-            collection_name += f"_chapter_{chapter}"
+        # Step 5: Try to store in vector database (optional if connection failed)
+        collection_info = None
+        vector_storage_status = "skipped"
         
-        logger.info(f"Creating/updating collection: {collection_name}")
-        
-        if not vector_store.create_collection(collection_name, book_name):
-            return {
-                "status": "error",
-                "error": "Failed to create collection",
-                "step": "collection_creation"
-            }
-        
-        # Step 6: Store chunks and embeddings
-        logger.info("Storing chunks and embeddings in vector database")
-        if not vector_store.upsert_chunks(collection_name, chunks, embeddings):
-            return {
-                "status": "error",
-                "error": "Failed to store chunks in vector database",
-                "step": "vector_storage"
-            }
-        
-        # Get collection info
-        collection_info = vector_store.get_collection_info(collection_name)
+        if vector_store is not None:
+            try:
+                collection_name = f"book_{book_name.lower().replace(' ', '_')}"
+                if chapter is not None:
+                    collection_name += f"_chapter_{chapter}"
+                
+                logger.info(f"🗄️ Creating/updating vector collection: {collection_name}")
+                
+                if vector_store.create_collection(collection_name, book_name):
+                    logger.info("✅ Vector collection created successfully")
+                    
+                    # Store chunks and embeddings
+                    logger.info("📤 Storing chunks and embeddings in vector database")
+                    if vector_store.upsert_chunks(collection_name, chunks, embeddings):
+                        logger.info("✅ Chunks stored in vector database successfully")
+                        collection_info = vector_store.get_collection_info(collection_name)
+                        vector_storage_status = "success"
+                    else:
+                        logger.warning("⚠️ Failed to store chunks in vector database")
+                        vector_storage_status = "failed_upsert"
+                else:
+                    logger.warning("⚠️ Failed to create vector collection")
+                    vector_storage_status = "failed_collection"
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Vector database operation failed: {str(e)}")
+                vector_storage_status = f"error: {str(e)}"
+        else:
+            logger.info("⏭️ Skipping vector database storage (connection not available)")
+            logger.info(f"   Embeddings are safely cached in GCS for later processing")
         
         return {
             "status": "success",
             "book_name": book_name,
             "chapter": chapter,
-            "collection_name": collection_name,
             "chunks_created": len(chunks),
             "embeddings_generated": len(embeddings),
+            "embeddings_cached": cache_saved,
+            "embeddings_from_cache": bool(cached_result),
             "markdown_gcs_path": gcs_path,
-            "collection_info": collection_info
+            "vector_storage_status": vector_storage_status,
+            "collection_info": collection_info,
+            "vector_store_error": vector_store_error
         }
         
     except Exception as e:
@@ -173,7 +215,7 @@ def process_folder_to_vector(folder_path: str, book_name: str,
     logger.info(f"Starting folder processing for {folder_path}")
     
     # Initialize bucket manager
-    bucket_manager = BucketManager(BUCKET_NAME)
+    bucket_manager = BucketManager(PROJECT_ID, BUCKET_NAME)
     
     # List all PDF files in the folder
     pdf_files = bucket_manager.list_files_in_folder(folder_path, '.pdf')
@@ -372,6 +414,8 @@ def main():
     if not QDRANT_API_KEY:
         logger.error("QDRANT_API_KEY environment variable is required")
         sys.exit(1)
+    
+    # QDRANT_URL now has a default value, so no warning needed
     
     result = {}
     
