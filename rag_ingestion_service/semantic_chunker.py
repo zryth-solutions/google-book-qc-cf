@@ -7,17 +7,19 @@ import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import tiktoken
+from metadata_extractor import MetadataExtractor, EnhancedMetadata
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class Chunk:
-    """Represents a semantic chunk of text"""
+    """Represents a semantic chunk of text with enhanced metadata"""
     content: str
     chunk_index: int
     start_position: int
     end_position: int
     metadata: Dict[str, Any]
+    enhanced_metadata: Optional[EnhancedMetadata] = None
     
     @property
     def id(self) -> str:
@@ -31,7 +33,8 @@ class SemanticChunker:
                  max_chunk_size: int = 1000,
                  overlap_size: int = 200,
                  min_chunk_size: int = 100,
-                 encoding_name: str = "cl100k_base"):
+                 encoding_name: str = "cl100k_base",
+                 enable_enhanced_metadata: bool = True):
         """
         Initialize the semantic chunker
         
@@ -40,11 +43,14 @@ class SemanticChunker:
             overlap_size: Number of tokens to overlap between chunks
             min_chunk_size: Minimum size of each chunk in tokens
             encoding_name: Tokenizer encoding name
+            enable_enhanced_metadata: Whether to extract enhanced metadata
         """
         self.max_chunk_size = max_chunk_size
         self.overlap_size = overlap_size
         self.min_chunk_size = min_chunk_size
         self.encoding = tiktoken.get_encoding(encoding_name)
+        self.enable_enhanced_metadata = enable_enhanced_metadata
+        self.metadata_extractor = MetadataExtractor() if enable_enhanced_metadata else None
     
     def chunk_markdown(self, markdown_content: str, book_name: str, chapter: Optional[int] = None) -> List[Chunk]:
         """
@@ -208,7 +214,7 @@ class SemanticChunker:
     
     def _create_chunk(self, content: str, chunk_index: int, position: int, 
                      book_name: str, chapter: Optional[int], title: str, level: int) -> Chunk:
-        """Create a Chunk object"""
+        """Create a Chunk object with enhanced metadata"""
         metadata = {
             'book_name': book_name,
             'section_title': title,
@@ -220,12 +226,36 @@ class SemanticChunker:
         if chapter is not None:
             metadata['chapter'] = chapter
         
+        # Extract enhanced metadata if enabled
+        enhanced_metadata = None
+        if self.enable_enhanced_metadata and self.metadata_extractor:
+            try:
+                enhanced_metadata = self.metadata_extractor.extract_enhanced_metadata(content, chunk_index)
+                # Add enhanced metadata to basic metadata for backward compatibility
+                metadata.update({
+                    'page_numbers': enhanced_metadata.page_numbers,
+                    'content_type': enhanced_metadata.content_type,
+                    'important_terms': enhanced_metadata.important_terms,
+                    'technical_terms': enhanced_metadata.technical_terms,
+                    'keywords': enhanced_metadata.keywords,
+                    'figures': enhanced_metadata.figures,
+                    'tables': enhanced_metadata.tables,
+                    'examples': enhanced_metadata.examples,
+                    'exercises': enhanced_metadata.exercises,
+                    'word_count': enhanced_metadata.word_count,
+                    'readability_score': enhanced_metadata.readability_score,
+                    'complexity_score': enhanced_metadata.complexity_score
+                })
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to extract enhanced metadata for chunk {chunk_index}: {e}")
+        
         chunk = Chunk(
             content=content,
             chunk_index=chunk_index,
             start_position=position,
             end_position=position + len(content),
-            metadata=metadata
+            metadata=metadata,
+            enhanced_metadata=enhanced_metadata
         )
         # Add chapter as attribute for compatibility
         chunk.chapter = chapter
