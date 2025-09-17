@@ -113,8 +113,11 @@ spec:
             name: $SERVICE
             resources:
               limits:
+                cpu: '4'
+                memory: 8Gi
+              requests:
                 cpu: '2'
-                memory: 2Gi
+                memory: 4Gi
             env:
             - name: PROJECT_ID
               value: '$PROJECT_ID'
@@ -129,8 +132,8 @@ spec:
             - name: QDRANT_API_KEY
               value: '${{ secrets.QDRANT_API_KEY }}'
           restartPolicy: Never
-          timeoutSeconds: 604800
-      backoffLimit: 3
+          timeoutSeconds: 3600
+      backoffLimit: 2
       completions: 1
       parallelism: 1
 EOF
@@ -155,8 +158,11 @@ spec:
             name: $SERVICE
             resources:
               limits:
+                cpu: '4'
+                memory: 8Gi
+              requests:
                 cpu: '2'
-                memory: 2Gi
+                memory: 4Gi
             env:
             - name: PROJECT_ID
               value: '$PROJECT_ID'
@@ -171,8 +177,8 @@ spec:
             - name: QDRANT_API_KEY
               value: '${{ secrets.QDRANT_API_KEY }}'
           restartPolicy: Never
-          timeoutSeconds: 604800
-      backoffLimit: 3
+          timeoutSeconds: 3600
+      backoffLimit: 2
       completions: 1
       parallelism: 1
 EOF
@@ -203,3 +209,4 @@ EOF
         echo "📝 Next steps:"
         echo "✅ API keys are configured via GitHub repository secrets"
         echo "✅ Cloud Run Job is ready to process workflows"
+        echo "✅ Container configured with 8GB memory and 4 CPU cores for NLP processing"

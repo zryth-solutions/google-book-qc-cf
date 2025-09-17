@@ -10,12 +10,13 @@ RUN apt-get update && apt-get install -y \
     g++ \
     build-essential \
     python3-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY rag_ingestion_service/requirements.txt ./requirements.txt
 
-# Install Python dependencies
+# Install Python dependencies (without spaCy model)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
