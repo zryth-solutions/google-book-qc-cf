@@ -128,7 +128,6 @@ spec:
               value: '${{ secrets.MARKER_API_KEY }}'
             - name: QDRANT_API_KEY
               value: '${{ secrets.QDRANT_API_KEY }}'
-            args: ["--help"]
           restartPolicy: Never
           timeoutSeconds: 604800
       backoffLimit: 3
@@ -171,7 +170,6 @@ spec:
               value: '${{ secrets.MARKER_API_KEY }}'
             - name: QDRANT_API_KEY
               value: '${{ secrets.QDRANT_API_KEY }}'
-            args: ["--help"]
           restartPolicy: Never
           timeoutSeconds: 604800
       backoffLimit: 3
