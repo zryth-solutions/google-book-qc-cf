@@ -26,7 +26,7 @@ class EmbeddingGenerator:
         self.model_name = "textembedding-gecko@001"
         
         # Initialize Vertex AI
-        aiplatform.init(project=project_id, location=location)
+        vertexai.init(project=project_id, location=location)
         self.model = TextEmbeddingModel.from_pretrained(self.model_name)
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:

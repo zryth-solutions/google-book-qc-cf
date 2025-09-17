@@ -33,5 +33,5 @@ USER app
 # Expose port (Cloud Run will override this)
 EXPOSE 8080
 
-# Default command
-CMD ["python", "cli_main.py", "process", "--help"]
+# Default command - use test script for debugging
+CMD ["python", "test_container.py"]
