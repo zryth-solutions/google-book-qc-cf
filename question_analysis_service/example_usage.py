@@ -50,7 +50,6 @@ def analyze_extracted_questions():
             local_temp_dir="/tmp/question_analysis",
             file_pattern="*.json",
             batch_size=5,
-            store_in_qdrant=True,
             verbose=True
         )
         

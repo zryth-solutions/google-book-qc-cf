@@ -203,9 +203,7 @@ class BatchQuestionProcessor:
             
             logger.info(f"📁 Found {len(json_files)} JSON files to process")
             
-            # Create analysis collection if storing in Qdrant
-            if store_in_qdrant:
-                self.create_analysis_collection()
+            # Note: Qdrant is used for content retrieval, not for storing analysis results
             
             # Process each file
             results = []
@@ -307,9 +305,7 @@ class BatchQuestionProcessor:
             
             logger.info(f"📁 Found {len(json_files)} JSON files in GCS folder")
             
-            # Create analysis collection if storing in Qdrant
-            if store_in_qdrant:
-                self.create_analysis_collection()
+            # Note: Qdrant is used for content retrieval, not for storing analysis results
             
             # Process each file
             results = []

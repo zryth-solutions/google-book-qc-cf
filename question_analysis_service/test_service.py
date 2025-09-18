@@ -147,7 +147,6 @@ def test_batch_processing():
                 folder_path=str(temp_path),
                 file_pattern="*.json",
                 batch_size=3,
-                store_in_qdrant=True,
                 verbose=True
             )
             

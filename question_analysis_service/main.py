@@ -116,7 +116,6 @@ def analyze_folder():
         folder_path = data['folder_path']
         file_pattern = data.get('file_pattern', '*.json')
         batch_size = data.get('batch_size', 5)
-        store_in_qdrant = data.get('store_in_qdrant', True)
         verbose = data.get('verbose', False)
         
         logger.info(f"Analyzing folder: {folder_path}")
@@ -126,7 +125,6 @@ def analyze_folder():
             folder_path=folder_path,
             file_pattern=file_pattern,
             batch_size=batch_size,
-            store_in_qdrant=store_in_qdrant,
             verbose=verbose
         )
         
@@ -157,7 +155,6 @@ def analyze_gcs_folder():
         local_temp_dir = data.get('local_temp_dir', '/tmp/question_analysis')
         file_pattern = data.get('file_pattern', '*.json')
         batch_size = data.get('batch_size', 5)
-        store_in_qdrant = data.get('store_in_qdrant', True)
         verbose = data.get('verbose', False)
         
         logger.info(f"Analyzing GCS folder: {gcs_folder_path}")
@@ -168,7 +165,6 @@ def analyze_gcs_folder():
             local_temp_dir=local_temp_dir,
             file_pattern=file_pattern,
             batch_size=batch_size,
-            store_in_qdrant=store_in_qdrant,
             verbose=verbose
         )
         
