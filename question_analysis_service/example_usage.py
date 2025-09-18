@@ -72,7 +72,7 @@ def search_analysis_results(query: str, limit: int = 5):
     
     try:
         from batch_processor import BatchQuestionProcessor
-        from rag_ingestion_service.embedding_generator import EmbeddingGenerator
+        from embedding_generator import EmbeddingGenerator
         
         # Get API keys
         qdrant_api_key = os.getenv('QDRANT_API_KEY')

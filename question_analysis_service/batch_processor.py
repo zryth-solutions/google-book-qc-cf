@@ -12,8 +12,8 @@ from datetime import datetime
 import uuid
 
 from analyzer import CBSEQuestionAnalyzer
-from rag_ingestion_service.vector_store import VectorStore
-from rag_ingestion_service.embedding_generator import EmbeddingGenerator
+from vector_store import VectorStore
+from embedding_generator import EmbeddingGenerator
 from utils.gcp.bucket_manager import BucketManager
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ class BatchQuestionProcessor:
         """
         try:
             # Create a chunk for the analysis report
-            from rag_ingestion_service.semantic_chunker import Chunk
+            from semantic_chunker import Chunk
             
             chunk = Chunk(
                 content=analysis_result["analysis_report"],
