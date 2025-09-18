@@ -41,6 +41,9 @@ jobs:
       run: |
         gcloud auth configure-docker $REGION-docker.pkg.dev
     
+    - name: Install gcloud beta components
+      run: gcloud components install beta --quiet
+    
     - name: Build Docker image
       run: |
         docker build -t $REPOSITORY/$IMAGE_NAME:$GITHUB_SHA -f question_analysis_service/Dockerfile .
