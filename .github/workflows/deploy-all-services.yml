@@ -272,6 +272,15 @@ jobs:
     - name: Configure Docker for Artifact Registry
       run: gcloud auth configure-docker $REGION-docker.pkg.dev
 
+    - name: Create Artifact Registry Repository
+      run: |
+        # Create the question-analysis repository if it doesn't exist
+        gcloud artifacts repositories create question-analysis \
+          --repository-format=docker \
+          --location=$REGION \
+          --description="Question Analysis Service Docker Images" \
+          --quiet || echo "Repository question-analysis already exists"
+
     - name: Build and Deploy Question Analysis Service
       uses: nick-fields/retry@v3
       with:
