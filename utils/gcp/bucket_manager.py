@@ -190,7 +190,7 @@ class BucketManager:
         List all files in a GCS folder
         
         Args:
-            folder_path: Path to the folder in GCS bucket (without leading slash)
+            folder_path: Path to the folder in GCS bucket (without leading slash) or full GCS path
             file_extension: Optional file extension filter (e.g., '.pdf', '.md')
             return_full_paths: If True, return full GCS paths (gs://bucket/path). If False, return relative paths.
             
@@ -198,6 +198,16 @@ class BucketManager:
             List[str]: List of file paths in the folder
         """
         try:
+            # Handle full GCS paths (gs://bucket/path)
+            if folder_path.startswith('gs://'):
+                # Extract the path part after the bucket name
+                parts = folder_path.split('/', 3)
+                if len(parts) >= 4 and parts[2] == self.bucket_name:
+                    folder_path = parts[3]  # Get the path after bucket name
+                else:
+                    logger.error(f"Bucket name in path {folder_path} doesn't match configured bucket {self.bucket_name}")
+                    return []
+            
             # Ensure folder_path doesn't start with slash
             if folder_path.startswith('/'):
                 folder_path = folder_path[1:]
