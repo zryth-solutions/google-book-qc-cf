@@ -23,6 +23,8 @@ main:
             overrides:
               containerOverrides:
                 - args: 
+                    - "python"
+                    - "cli_main.py"
                     - "process"
                     - "--folder-path"
                     - ${folder_path}

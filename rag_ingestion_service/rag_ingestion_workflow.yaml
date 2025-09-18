@@ -24,6 +24,8 @@ main:
             overrides:
               containerOverrides:
                 - args: 
+                    - "python"
+                    - "cli_main.py"
                     - "process"
                     - "--pdf-path"
                     - ${pdf_path}
