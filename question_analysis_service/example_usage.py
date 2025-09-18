@@ -17,7 +17,7 @@ def analyze_extracted_questions():
     print("🔍 Analyzing extracted questions from GCS...")
     
     try:
-        from question_analysis_service.batch_processor import BatchQuestionProcessor
+        from batch_processor import BatchQuestionProcessor
         
         # Get API keys from environment
         gemini_api_key = os.getenv('GEMINI_API_KEY')
@@ -71,7 +71,7 @@ def search_analysis_results(query: str, limit: int = 5):
     print(f"\n🔍 Searching for: '{query}'")
     
     try:
-        from question_analysis_service.batch_processor import BatchQuestionProcessor
+        from batch_processor import BatchQuestionProcessor
         from rag_ingestion_service.embedding_generator import EmbeddingGenerator
         
         # Get API keys
@@ -125,7 +125,7 @@ def list_collections():
     print("\n📚 Listing Qdrant collections...")
     
     try:
-        from question_analysis_service.batch_processor import BatchQuestionProcessor
+        from batch_processor import BatchQuestionProcessor
         
         # Get API keys
         qdrant_api_key = os.getenv('QDRANT_API_KEY')

@@ -11,11 +11,11 @@ import argparse
 from pathlib import Path
 import logging
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent))
+# Add current directory to path for imports
+sys.path.append(str(Path(__file__).parent))
 
-from question_analysis_service.analyzer import CBSEQuestionAnalyzer
-from question_analysis_service.batch_processor import BatchQuestionProcessor
+from analyzer import CBSEQuestionAnalyzer
+from batch_processor import BatchQuestionProcessor
 
 def setup_logging(verbose=False):
     """Setup logging configuration"""

@@ -67,7 +67,7 @@ def test_single_file_analysis():
     print("🧪 Testing Single File Analysis...")
     
     try:
-        from question_analysis_service.analyzer import CBSEQuestionAnalyzer
+        from analyzer import CBSEQuestionAnalyzer
         
         # Create sample data
         sample_data = create_sample_questions()
@@ -107,7 +107,7 @@ def test_batch_processing():
     print("\n🧪 Testing Batch Processing...")
     
     try:
-        from question_analysis_service.batch_processor import BatchQuestionProcessor
+        from batch_processor import BatchQuestionProcessor
         
         # Check environment variables
         gemini_api_key = os.getenv('GEMINI_API_KEY')
