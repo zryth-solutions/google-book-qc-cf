@@ -281,6 +281,17 @@ jobs:
           --description="Question Analysis Service Docker Images" \
           --quiet || echo "Repository question-analysis already exists"
 
+    - name: Debug Build Context
+      run: |
+        echo "Current directory:"
+        pwd
+        echo "Files in current directory:"
+        ls -la
+        echo "Utils directory exists:"
+        ls -la utils/ || echo "Utils directory not found"
+        echo "Question analysis service directory:"
+        ls -la question_analysis_service/
+
     - name: Build and Deploy Question Analysis Service
       uses: nick-fields/retry@v3
       with:
@@ -288,7 +299,7 @@ jobs:
         max_attempts: 3
         retry_wait_seconds: 60
         command: |
-          docker build \
+          docker build --no-cache \
             -t $REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
             -f question_analysis_service/Dockerfile .
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA
