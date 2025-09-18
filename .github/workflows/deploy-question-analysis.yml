@@ -31,7 +31,8 @@ jobs:
       id: auth
       uses: google-github-actions/auth@v2
       with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        workload_identity_provider: 'projects/282136454082/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+        service_account: 'pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com'
     
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
@@ -51,49 +52,51 @@ jobs:
         docker push $REPOSITORY/$IMAGE_NAME:$GITHUB_SHA
         docker push $REPOSITORY/$IMAGE_NAME:latest
     
-    - name: Deploy to Cloud Run
+    - name: Create Artifact Registry Repository
       run: |
-        gcloud run deploy $SERVICE_NAME \
-          --image $REPOSITORY/$IMAGE_NAME:$GITHUB_SHA \
-          --platform managed \
-          --region $REGION \
-          --allow-unauthenticated \
-          --memory 4Gi \
-          --cpu 2 \
-          --timeout 600 \
-          --max-instances 10 \
-          --min-instances 0 \
-          --port 8080 \
-          --set-env-vars PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage \
-          --set-secrets GEMINI_API_KEY=question-analysis-secrets:gemini-api-key,QDRANT_API_KEY=question-analysis-secrets:qdrant-api-key,QDRANT_URL=question-analysis-secrets:qdrant-url
-    
-    - name: Update Cloud Run service with latest image
+        # Create the question-analysis repository if it doesn't exist
+        gcloud artifacts repositories create question-analysis \
+          --repository-format=docker \
+          --location=$REGION \
+          --description="Question Analysis Service Docker Images" \
+          --quiet || echo "Repository question-analysis already exists"
+
+    - name: Deploy Cloud Run Job
       run: |
-        gcloud run services update $SERVICE_NAME \
-          --region $REGION \
-          --image $REPOSITORY/$IMAGE_NAME:latest
-    
-    - name: Verify deployment
-      run: |
-        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format='value(status.url)')
-        echo "Service URL: $SERVICE_URL"
+        # Delete existing job if it exists to avoid environment variable conflicts
+        if gcloud run jobs describe question-analysis-job --region=$REGION >/dev/null 2>&1; then
+          echo "Deleting existing job to avoid environment variable conflicts..."
+          gcloud run jobs delete question-analysis-job --region=$REGION --quiet
+        fi
         
-        # Wait for service to be ready
-        sleep 30
-        
-        # Test health endpoint
-        curl -f "$SERVICE_URL/health" || exit 1
-        echo "✅ Service is healthy and responding"
+        # Create new job
+        echo "Creating new question-analysis-job..."
+        gcloud beta run jobs create question-analysis-job \
+          --image=$REPOSITORY/$IMAGE_NAME:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,VERTEX_AI_LOCATION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
+          --max-retries=3 \
+          --parallelism=5 \
+          --tasks=1 \
+          --task-timeout=604800s \
+          --memory=4Gi \
+          --cpu=2
     
-    - name: Output service information
+    - name: Deploy Workflow
       run: |
-        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format='value(status.url)')
+        gcloud workflows deploy question-analysis-workflow \
+          --source question_analysis_service/question_analysis_workflow.yaml \
+          --location $REGION \
+          --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+    
+    - name: Output deployment information
+      run: |
         echo "🚀 Question Analysis Service deployed successfully!"
-        echo "📍 Service URL: $SERVICE_URL"
-        echo "🔍 Health Check: $SERVICE_URL/health"
-        echo "📚 API Documentation:"
-        echo "  - POST $SERVICE_URL/analyze/file - Analyze single JSON file"
-        echo "  - POST $SERVICE_URL/analyze/folder - Analyze local folder"
-        echo "  - POST $SERVICE_URL/analyze/gcs-folder - Analyze GCS folder"
-        echo "  - POST $SERVICE_URL/search/analysis - Search analysis results"
-        echo "  - GET $SERVICE_URL/collections - List Qdrant collections"
+        echo "📍 Job Name: question-analysis-job"
+        echo "📍 Region: $REGION"
+        echo "📍 Project: $PROJECT_ID"
+        echo "📚 Usage:"
+        echo "  - Use Cloud Run Jobs to execute analysis tasks"
+        echo "  - Use Cloud Workflows to trigger batch processing"
+        echo "  - Use CLI: python question_analysis_service/cli_main.py --help"
