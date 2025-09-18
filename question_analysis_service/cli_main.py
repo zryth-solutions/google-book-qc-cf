@@ -150,9 +150,6 @@ Examples:
   
   # Analyze GCS folder
   python cli_main.py gcs-folder book_ip_sqp/extracted_questions --verbose
-  
-  # Search analysis results
-  python cli_main.py search "grammar errors" --limit 5
         """
     )
     
@@ -177,8 +174,6 @@ Examples:
                               help='File pattern to match (default: *.json)')
     folder_parser.add_argument('-b', '--batch-size', type=int, default=5, 
                               help='Questions per batch for detailed analysis (default: 5)')
-    folder_parser.add_argument('--no-qdrant', action='store_true', 
-                              help='Do not store results in Qdrant')
     
     # GCS folder analysis
     gcs_parser = subparsers.add_parser('gcs-folder', help='Analyze all JSON files in a GCS folder')
