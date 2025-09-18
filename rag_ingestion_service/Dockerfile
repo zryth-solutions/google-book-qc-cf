@@ -24,7 +24,7 @@ RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY rag_ingestion_service/ .
-COPY ../utils/ ./utils
+COPY utils/ ./utils
 
 # Copy and make entrypoint script executable
 COPY rag_ingestion_service/entrypoint.sh /entrypoint.sh
