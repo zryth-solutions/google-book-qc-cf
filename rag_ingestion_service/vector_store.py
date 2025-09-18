@@ -25,9 +25,9 @@ class VectorStore:
         self.api_key = api_key
         
         # If no URL provided, try to use Qdrant Cloud with API key
-        if not url or url == "https://qdrant.tech":
+        if not url:
             # For Qdrant Cloud, extract cluster URL from API key or use default cloud URL
-            url = "https://cloud.qdrant.io"
+            url = "https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io"
             logger.info(f"Using Qdrant Cloud URL: {url}")
         
         self.url = url

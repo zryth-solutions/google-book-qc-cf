@@ -84,7 +84,7 @@ curl -X POST https://your-service-url/search \
 - `REGION`: Google Cloud region (default: us-central1)
 - `MARKER_API_KEY`: Marker API key for PDF conversion
 - `QDRANT_API_KEY`: Qdrant API key for vector database
-- `QDRANT_URL`: Qdrant cluster URL (default: https://qdrant.tech)
+- `QDRANT_URL`: Qdrant cluster URL (default: https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io)
 
 ## Setup
 

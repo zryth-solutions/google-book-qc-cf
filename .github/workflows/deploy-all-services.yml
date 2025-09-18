@@ -211,7 +211,7 @@ jobs:
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://qdrant.tech \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
             --max-retries=3 \
             --parallelism=1 \
             --tasks=1 \
@@ -224,7 +224,7 @@ jobs:
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/rag-ingestion/rag-ingestion:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://qdrant.tech \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
             --max-retries=3 \
             --parallelism=1 \
             --tasks=1 \
