@@ -16,8 +16,11 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better caching
 COPY rag_ingestion_service/requirements.txt ./requirements.txt
 
-# Install Python dependencies (without spaCy model)
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY rag_ingestion_service/ .
