@@ -23,6 +23,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY rag_ingestion_service/ .
 COPY utils/ ./utils
 
+# Copy and make entrypoint script executable
+COPY rag_ingestion_service/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
@@ -34,5 +38,6 @@ USER app
 # Expose port (Cloud Run will override this)
 EXPOSE 8080
 
-# Default command - run CLI main for Cloud Run Job
-CMD ["python", "cli_main.py"]
+# Use entrypoint script to handle arguments properly
+ENTRYPOINT ["/entrypoint.sh"]
+CMD []
