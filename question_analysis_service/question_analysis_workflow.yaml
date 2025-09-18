@@ -1,13 +1,69 @@
 main:
-  params: [gcs_folder_path, batch_size, store_in_qdrant, verbose]
+  params: [input_data]
+  
   steps:
+  # Set default values and extract parameters
+  - set_defaults:
+      assign:
+        - gcs_folder_path: ${default(map.get(input_data, "gcs_folder_path"), "")}
+        - batch_size: ${default(map.get(input_data, "batch_size"), 10)}
+        - store_in_qdrant: ${default(map.get(input_data, "store_in_qdrant"), true)}
+        - verbose: ${default(map.get(input_data, "verbose"), false)}
+        - bucket_name: "book-qc-cf-pdf-storage"
+        - project_id: "book-qc-cf"
+        - region: "us-central1"
+  
+  # Execute question analysis job using HTTP connector
   - trigger_analysis:
-      call: googleapis.run.v1.namespaces.jobs.run
+      call: http.post
       args:
-        name: "projects/book-qc-cf/locations/us-central1/jobs/question-analysis-job"
+        url: ${"https://run.googleapis.com/v2/projects/" + project_id + "/locations/" + region + "/jobs/question-analysis-job:run"}
+        auth:
+          type: OAuth2
+        body:
+          overrides:
+            containerOverrides:
+              - args: 
+                  - "python"
+                  - "cli_main.py"
+                  - "analyze-gcs-folder"
+                  - "--gcs-folder-path"
+                  - ${gcs_folder_path}
+                  - "--batch-size"
+                  - ${string(batch_size)}
+                  - "--store-in-qdrant"
+                  - ${string(store_in_qdrant)}
+                  - "--verbose"
+                  - ${string(verbose)}
+                env:
+                  - name: GOOGLE_CLOUD_PROJECT
+                    value: ${project_id}
+                  - name: PROJECT_ID
+                    value: ${project_id}
+                  - name: BUCKET_NAME
+                    value: ${bucket_name}
+                  - name: REGION
+                    value: ${region}
+                  - name: VERTEX_AI_LOCATION
+                    value: ${region}
+                  - name: QDRANT_URL
+                    value: "https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io"
       result: job_result
+  
+  # Wait for job completion
+  - wait_for_completion:
+      call: sys.sleep
+      args:
+        seconds: 60
+  
+  # Return success result
   - return_result:
       return:
         job_name: ${job_result.metadata.name}
         status: "success"
         message: "Question analysis job triggered successfully"
+        gcs_folder_path: ${gcs_folder_path}
+        batch_size: ${batch_size}
+        store_in_qdrant: ${store_in_qdrant}
+        verbose: ${verbose}
+        job_execution: ${job_result}
