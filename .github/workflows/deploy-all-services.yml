@@ -295,34 +295,25 @@ jobs:
         
     - name: Create/Update Question Analysis Cloud Run Job
       run: |
-        # Try to update existing job first, if it fails, create a new one
+        # Delete existing job if it exists to avoid environment variable conflicts
         if gcloud run jobs describe question-analysis-job --region=$REGION >/dev/null 2>&1; then
-          echo "Job exists, updating..."
-          gcloud beta run jobs update question-analysis-job \
-            --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
-            --region=$REGION \
-            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,VERTEX_AI_LOCATION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
-            --max-retries=3 \
-            --parallelism=5 \
-            --tasks=1 \
-            --task-timeout=604800s \
-            --memory=4Gi \
-            --cpu=2
-        else
-          echo "Job doesn't exist, creating..."
-          gcloud beta run jobs create question-analysis-job \
-            --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
-            --region=$REGION \
-            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,VERTEX_AI_LOCATION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
-            --max-retries=3 \
-            --parallelism=5 \
-            --tasks=1 \
-            --task-timeout=604800s \
-            --memory=4Gi \
-            --cpu=2
+          echo "Deleting existing job to avoid environment variable conflicts..."
+          gcloud run jobs delete question-analysis-job --region=$REGION --quiet
         fi
+        
+        # Create new job
+        echo "Creating new question-analysis-job..."
+        gcloud beta run jobs create question-analysis-job \
+          --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
+          --region=$REGION \
+          --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,VERTEX_AI_LOCATION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
+          --max-retries=3 \
+          --parallelism=5 \
+          --tasks=1 \
+          --task-timeout=604800s \
+          --memory=4Gi \
+          --cpu=2
         
     - name: Deploy Question Analysis Workflow
       run: |
