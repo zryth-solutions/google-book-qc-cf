@@ -49,6 +49,11 @@ class BatchQuestionProcessor:
     def create_analysis_collection(self) -> bool:
         """Create collection for storing analysis results"""
         try:
+            # Skip collection creation if using placeholder API keys
+            if self.vector_store.api_key == "placeholder-qdrant-key":
+                logger.warning("Skipping Qdrant collection creation - using placeholder API key")
+                return False
+                
             return self.vector_store.create_collection(
                 self.collection_name, 
                 "Question Analysis Results"

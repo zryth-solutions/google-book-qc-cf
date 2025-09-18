@@ -29,6 +29,13 @@ class CBSEQuestionAnalyzer:
                 raise ValueError("Please provide API key or set GEMINI_API_KEY environment variable")
             genai.configure(api_key=api_key)
         
+        # Check if using placeholder key
+        if api_key == "placeholder-gemini-key":
+            logger.warning("Using placeholder Gemini API key - analysis will not work properly")
+            # Create a mock model for testing
+            self.model = None
+            return
+        
         try:
             self.model = genai.GenerativeModel('gemini-2.0-flash')
             logger.info("✓ Gemini 2.0 Flash API initialized")
@@ -220,6 +227,10 @@ REMEMBER: Your job is to catch EVERY possible issue. Be extremely critical and t
         try:
             if verbose:
                 logger.info(f"🔍 Analyzing batch {batch_num}/{total_batches} ({len(questions_batch)} questions)")
+            
+            # Check if model is available
+            if self.model is None:
+                return f"[MOCK ANALYSIS] Batch {batch_num} - {len(questions_batch)} questions analyzed (using placeholder API key)"
             
             prompt = self.create_detailed_batch_prompt(questions_batch, batch_num, total_batches)
             

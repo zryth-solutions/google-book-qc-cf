@@ -302,8 +302,7 @@ jobs:
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
-            --set-secrets=GEMINI_API_KEY=question-analysis-secrets:gemini-api-key,QDRANT_API_KEY=question-analysis-secrets:qdrant-api-key,QDRANT_URL=question-analysis-secrets:qdrant-url \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \
@@ -316,8 +315,7 @@ jobs:
             --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
             --region=$REGION \
             --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
-            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
-            --set-secrets=GEMINI_API_KEY=question-analysis-secrets:gemini-api-key,QDRANT_API_KEY=question-analysis-secrets:qdrant-api-key,QDRANT_URL=question-analysis-secrets:qdrant-url \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io \
             --max-retries=3 \
             --parallelism=5 \
             --tasks=1 \

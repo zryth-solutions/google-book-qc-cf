@@ -37,10 +37,14 @@ def initialize_processor():
             gcp_project_id = os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
             bucket_name = os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage')
             
+            # For now, use placeholder values if API keys are not provided
+            # In production, these should be set via environment variables or secrets
             if not gemini_api_key:
-                raise ValueError("GEMINI_API_KEY environment variable is required")
+                logger.warning("GEMINI_API_KEY not set, using placeholder. Set this for production use.")
+                gemini_api_key = "placeholder-gemini-key"
             if not qdrant_api_key:
-                raise ValueError("QDRANT_API_KEY environment variable is required")
+                logger.warning("QDRANT_API_KEY not set, using placeholder. Set this for production use.")
+                qdrant_api_key = "placeholder-qdrant-key"
             
             processor = BatchQuestionProcessor(
                 gemini_api_key=gemini_api_key,
