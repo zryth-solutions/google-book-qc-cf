@@ -9,43 +9,37 @@ import json
 import argparse
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
-import google.generativeai as genai
+import vertexai
+from vertexai.generative_models import GenerativeModel
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 class CBSEQuestionAnalyzer:
-    def __init__(self, api_key=None):
-        self.setup_gemini(api_key)
+    def __init__(self, project_id: str = None, location: str = "us-central1"):
+        self.setup_vertex_ai(project_id, location)
         
-    def setup_gemini(self, api_key=None):
-        """Initialize Gemini API"""
-        if api_key:
-            genai.configure(api_key=api_key)
-        else:
-            api_key = os.getenv('GEMINI_API_KEY')
-            if not api_key:
-                raise ValueError("Please provide API key or set GEMINI_API_KEY environment variable")
-            genai.configure(api_key=api_key)
+    def setup_vertex_ai(self, project_id: str = None, location: str = "us-central1"):
+        """Initialize Vertex AI"""
+        if not project_id:
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID')
+            if not project_id:
+                raise ValueError("Please provide project_id or set GOOGLE_CLOUD_PROJECT/GCP_PROJECT_ID environment variable")
         
-        # Check if using placeholder key
-        if api_key == "placeholder-gemini-key":
-            logger.warning("Using placeholder Gemini API key - analysis will not work properly")
-            # Create a mock model for testing
-            self.model = None
-            return
+        self.project_id = project_id
+        self.location = location
         
         try:
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
-            logger.info("✓ Gemini 2.0 Flash API initialized")
+            # Initialize Vertex AI
+            vertexai.init(project=project_id, location=location)
+            self.model = GenerativeModel("gemini-2.5-pro")
+            logger.info(f"✓ Vertex AI initialized - Project: {project_id}, Location: {location}")
         except Exception as e:
-            try:
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                logger.info("✓ Gemini 1.5 Flash API initialized")
-            except:
-                self.model = genai.GenerativeModel('gemini-pro')
-                logger.info("✓ Gemini Pro API initialized")
+            logger.error(f"Failed to initialize Vertex AI: {e}")
+            # Create a mock model for testing
+            self.model = None
+            logger.warning("Using mock model - analysis will not work properly")
 
     def load_json_file(self, file_path):
         """Load and parse JSON file"""
@@ -230,10 +224,11 @@ REMEMBER: Your job is to catch EVERY possible issue. Be extremely critical and t
             
             # Check if model is available
             if self.model is None:
-                return f"[MOCK ANALYSIS] Batch {batch_num} - {len(questions_batch)} questions analyzed (using placeholder API key)"
+                return f"[MOCK ANALYSIS] Batch {batch_num} - {len(questions_batch)} questions analyzed (using mock model)"
             
             prompt = self.create_detailed_batch_prompt(questions_batch, batch_num, total_batches)
             
+            # Use Vertex AI to generate content
             response = self.model.generate_content([prompt])
             
             if not response.text:
@@ -335,8 +330,13 @@ OUTPUT FORMAT (Use Markdown):
             if verbose:
                 logger.info(f"📊 Generating concise summary from {len(all_batch_results)} detailed batches...")
             
+            # Check if model is available
+            if self.model is None:
+                return f"[MOCK SUMMARY] Generated summary for {total_questions} questions from {len(all_batch_results)} batches (using mock model)"
+            
             prompt = self.create_concise_summary_prompt(all_batch_results, total_questions, document_info)
             
+            # Use Vertex AI to generate content
             response = self.model.generate_content([prompt])
             
             if not response.text:

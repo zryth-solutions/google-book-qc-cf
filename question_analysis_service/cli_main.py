@@ -28,7 +28,8 @@ def setup_logging(verbose=False):
 def analyze_single_file(args):
     """Analyze a single JSON file"""
     try:
-        analyzer = CBSEQuestionAnalyzer(args.api_key)
+        project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
+        analyzer = CBSEQuestionAnalyzer(project_id)
         
         report, output_path = analyzer.analyze_question_paper(
             args.input_file,
@@ -51,13 +52,9 @@ def analyze_single_file(args):
 def analyze_folder(args):
     """Analyze all JSON files in a folder"""
     try:
-        # Get API keys
-        gemini_api_key = args.api_key or os.getenv('GEMINI_API_KEY')
+        # Get configuration
+        project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
         qdrant_api_key = os.getenv('QDRANT_API_KEY')
-        
-        if not gemini_api_key:
-            print("❌ Error: Please provide --api-key or set GEMINI_API_KEY environment variable")
-            sys.exit(1)
         
         if not qdrant_api_key:
             print("❌ Error: Please set QDRANT_API_KEY environment variable")
@@ -65,11 +62,11 @@ def analyze_folder(args):
         
         # Initialize processor
         processor = BatchQuestionProcessor(
-            gemini_api_key=gemini_api_key,
+            project_id=project_id,
             qdrant_api_key=qdrant_api_key,
             qdrant_url=os.getenv('QDRANT_URL'),
-            gcp_project_id=os.getenv('GCP_PROJECT_ID', 'book-qc-cf'),
-            bucket_name=os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage')
+            bucket_name=os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage'),
+            location=os.getenv('VERTEX_AI_LOCATION', 'us-central1')
         )
         
         # Process folder
@@ -102,13 +99,9 @@ def analyze_folder(args):
 def analyze_gcs_folder(args):
     """Analyze all JSON files in a GCS folder"""
     try:
-        # Get API keys
-        gemini_api_key = args.api_key or os.getenv('GEMINI_API_KEY')
+        # Get configuration
+        project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
         qdrant_api_key = os.getenv('QDRANT_API_KEY')
-        
-        if not gemini_api_key:
-            print("❌ Error: Please provide --api-key or set GEMINI_API_KEY environment variable")
-            sys.exit(1)
         
         if not qdrant_api_key:
             print("❌ Error: Please set QDRANT_API_KEY environment variable")
@@ -116,11 +109,11 @@ def analyze_gcs_folder(args):
         
         # Initialize processor
         processor = BatchQuestionProcessor(
-            gemini_api_key=gemini_api_key,
+            project_id=project_id,
             qdrant_api_key=qdrant_api_key,
             qdrant_url=os.getenv('QDRANT_URL'),
-            gcp_project_id=os.getenv('GCP_PROJECT_ID', 'book-qc-cf'),
-            bucket_name=os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage')
+            bucket_name=os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage'),
+            location=os.getenv('VERTEX_AI_LOCATION', 'us-central1')
         )
         
         # Process GCS folder
@@ -154,7 +147,8 @@ def analyze_gcs_folder(args):
 def search_analysis(args):
     """Search analysis results"""
     try:
-        # Get API keys
+        # Get configuration
+        project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
         qdrant_api_key = os.getenv('QDRANT_API_KEY')
         
         if not qdrant_api_key:
@@ -163,15 +157,18 @@ def search_analysis(args):
         
         # Initialize processor
         processor = BatchQuestionProcessor(
-            gemini_api_key="dummy",  # Not needed for search
+            project_id=project_id,
             qdrant_api_key=qdrant_api_key,
-            qdrant_url=os.getenv('QDRANT_URL')
+            qdrant_url=os.getenv('QDRANT_URL'),
+            location=os.getenv('VERTEX_AI_LOCATION', 'us-central1')
         )
         
         # Generate query embedding
-        from rag_ingestion_service.embedding_generator import EmbeddingGenerator
-        embedding_gen = EmbeddingGenerator()
-        query_embedding = embedding_gen.generate_embedding(args.query)
+        query_embedding = processor.embedding_generator.generate_single_embedding(args.query)
+        
+        if not query_embedding:
+            print("❌ Error: Failed to generate query embedding")
+            sys.exit(1)
         
         # Search in Qdrant
         results = processor.vector_store.search_similar(
@@ -220,8 +217,8 @@ Examples:
     
     parser.add_argument('-v', '--verbose', action='store_true', 
                        help='Show detailed processing information')
-    parser.add_argument('-k', '--api-key', 
-                       help='Gemini API key (or set GEMINI_API_KEY env var)')
+    parser.add_argument('-p', '--project-id', 
+                       help='GCP Project ID (or set GOOGLE_CLOUD_PROJECT env var)')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     

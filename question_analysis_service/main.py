@@ -31,27 +31,24 @@ def initialize_processor():
     if processor is None:
         try:
             # Get configuration from environment variables
-            gemini_api_key = os.getenv('GEMINI_API_KEY')
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
             qdrant_api_key = os.getenv('QDRANT_API_KEY')
             qdrant_url = os.getenv('QDRANT_URL')
-            gcp_project_id = os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
             bucket_name = os.getenv('BUCKET_NAME', 'book-qc-cf-pdf-storage')
+            location = os.getenv('VERTEX_AI_LOCATION', 'us-central1')
             
             # For now, use placeholder values if API keys are not provided
             # In production, these should be set via environment variables or secrets
-            if not gemini_api_key:
-                logger.warning("GEMINI_API_KEY not set, using placeholder. Set this for production use.")
-                gemini_api_key = "placeholder-gemini-key"
             if not qdrant_api_key:
                 logger.warning("QDRANT_API_KEY not set, using placeholder. Set this for production use.")
                 qdrant_api_key = "placeholder-qdrant-key"
             
             processor = BatchQuestionProcessor(
-                gemini_api_key=gemini_api_key,
+                project_id=project_id,
                 qdrant_api_key=qdrant_api_key,
                 qdrant_url=qdrant_url,
-                gcp_project_id=gcp_project_id,
-                bucket_name=bucket_name
+                bucket_name=bucket_name,
+                location=location
             )
             
             logger.info("✅ Question Analysis Service initialized successfully")
@@ -204,10 +201,13 @@ def search_analysis():
         
         logger.info(f"Searching analysis results for: {query}")
         
-        # Generate query embedding
-        from ..rag_ingestion_service.embedding_generator import EmbeddingGenerator
-        embedding_gen = EmbeddingGenerator()
-        query_embedding = embedding_gen.generate_embedding(query)
+        # Generate query embedding using the processor's embedding generator
+        query_embedding = processor.embedding_generator.generate_single_embedding(query)
+        
+        if not query_embedding:
+            return jsonify({
+                "error": "Failed to generate query embedding"
+            }), 500
         
         # Search in Qdrant
         results = processor.vector_store.search_similar(

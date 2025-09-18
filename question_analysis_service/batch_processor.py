@@ -13,6 +13,7 @@ import uuid
 
 from .analyzer import CBSEQuestionAnalyzer
 from ..rag_ingestion_service.vector_store import VectorStore
+from ..rag_ingestion_service.embedding_generator import EmbeddingGenerator
 from ..utils.gcp.bucket_manager import BucketManager
 
 logger = logging.getLogger(__name__)
@@ -21,26 +22,36 @@ class BatchQuestionProcessor:
     """Processes multiple question JSON files and stores analysis results"""
     
     def __init__(self, 
-                 gemini_api_key: str,
+                 project_id: str,
                  qdrant_api_key: str,
                  qdrant_url: str = None,
-                 gcp_project_id: str = None,
-                 bucket_name: str = None):
+                 bucket_name: str = None,
+                 location: str = "us-central1"):
         """
         Initialize the batch processor
         
         Args:
-            gemini_api_key: Gemini API key for analysis
+            project_id: GCP project ID for Vertex AI and bucket operations
             qdrant_api_key: Qdrant API key for vector storage
             qdrant_url: Qdrant cluster URL (optional)
-            gcp_project_id: GCP project ID for bucket operations
             bucket_name: GCS bucket name for file storage
+            location: Vertex AI location
         """
-        self.analyzer = CBSEQuestionAnalyzer(gemini_api_key)
+        self.project_id = project_id
+        self.location = location
+        
+        # Initialize analyzer with Vertex AI
+        self.analyzer = CBSEQuestionAnalyzer(project_id, location)
+        
+        # Initialize vector store
         self.vector_store = VectorStore(qdrant_api_key, qdrant_url)
         
-        if gcp_project_id and bucket_name:
-            self.bucket_manager = BucketManager(gcp_project_id, bucket_name)
+        # Initialize embedding generator
+        self.embedding_generator = EmbeddingGenerator(project_id, location)
+        
+        # Initialize bucket manager
+        if bucket_name:
+            self.bucket_manager = BucketManager(project_id, bucket_name)
         else:
             self.bucket_manager = None
             
@@ -154,10 +165,12 @@ class BatchQuestionProcessor:
                 }
             )
             
-            # Generate embedding for the analysis report
-            from ..rag_ingestion_service.embedding_generator import EmbeddingGenerator
-            embedding_gen = EmbeddingGenerator()
-            embedding = embedding_gen.generate_embedding(analysis_result["analysis_report"])
+            # Generate embedding for the analysis report using Vertex AI
+            embedding = self.embedding_generator.generate_single_embedding(analysis_result["analysis_report"])
+            
+            if not embedding:
+                logger.error("Failed to generate embedding for analysis report")
+                return False
             
             # Store in Qdrant
             success = self.vector_store.upsert_chunks(
