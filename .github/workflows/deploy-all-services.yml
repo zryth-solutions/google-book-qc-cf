@@ -7,6 +7,7 @@ on:
       - 'split_pdf_service/**'
       - 'book_extractor_service/**'
       - 'rag_ingestion_service/**'
+      - 'question_analysis_service/**'
       - 'utils/**'
       - 'requirements.txt'
       - 'config.yaml'
@@ -244,9 +245,88 @@ jobs:
           --location $REGION \
           --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
 
+  deploy-question-analysis:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: 'projects/282136454082/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+        service_account: 'pdf-processor-sa@book-qc-cf.iam.gserviceaccount.com'
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install gcloud beta components
+      run: gcloud components install beta --quiet
+
+    - name: Configure Docker for Artifact Registry
+      run: gcloud auth configure-docker $REGION-docker.pkg.dev
+
+    - name: Build and Deploy Question Analysis Service
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 3
+        retry_wait_seconds: 60
+        command: |
+          docker build \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
+            -f question_analysis_service/Dockerfile .
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA
+        
+    - name: Create/Update Question Analysis Cloud Run Job
+      run: |
+        # Try to update existing job first, if it fails, create a new one
+        if gcloud run jobs describe question-analysis-job --region=$REGION >/dev/null 2>&1; then
+          echo "Job exists, updating..."
+          gcloud beta run jobs update question-analysis-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
+            --set-secrets=GEMINI_API_KEY=question-analysis-secrets:gemini-api-key,QDRANT_API_KEY=question-analysis-secrets:qdrant-api-key,QDRANT_URL=question-analysis-secrets:qdrant-url \
+            --max-retries=3 \
+            --parallelism=5 \
+            --tasks=1 \
+            --task-timeout=604800s \
+            --memory=4Gi \
+            --cpu=2
+        else
+          echo "Job doesn't exist, creating..."
+          gcloud beta run jobs create question-analysis-job \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/question-analysis/question-analysis:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com \
+            --set-env-vars=PROJECT_ID=$PROJECT_ID,BUCKET_NAME=book-qc-cf-pdf-storage,REGION=$REGION \
+            --set-secrets=GEMINI_API_KEY=question-analysis-secrets:gemini-api-key,QDRANT_API_KEY=question-analysis-secrets:qdrant-api-key,QDRANT_URL=question-analysis-secrets:qdrant-url \
+            --max-retries=3 \
+            --parallelism=5 \
+            --tasks=1 \
+            --task-timeout=604800s \
+            --memory=4Gi \
+            --cpu=2
+        fi
+        
+    - name: Deploy Question Analysis Workflow
+      run: |
+        gcloud workflows deploy question-analysis-workflow \
+          --source question_analysis_service/question_analysis_workflow.yaml \
+          --location $REGION \
+          --service-account pdf-processor-sa@$PROJECT_ID.iam.gserviceaccount.com
+
   summary:
     runs-on: ubuntu-latest
-    needs: [deploy-split-pdf, deploy-book-extractor, deploy-rag-ingestion]
+    needs: [deploy-split-pdf, deploy-book-extractor, deploy-rag-ingestion, deploy-question-analysis]
     if: always()
     
     steps:
@@ -256,6 +336,7 @@ jobs:
         echo "✅ PDF Processor Job: pdf-processor-job"
         echo "✅ Book Extractor Job: book-extractor-job"
         echo "✅ RAG Ingestion Job: rag-ingestion-job"
-        echo "✅ Workflows: pdf-processing-workflow, book-extraction-workflow, rag-ingestion-workflow"
+        echo "✅ Question Analysis Job: question-analysis-job"
+        echo "✅ Workflows: pdf-processing-workflow, book-extraction-workflow, rag-ingestion-workflow, question-analysis-workflow"
         echo "📍 Region: $REGION"
         echo "📍 Project: $PROJECT_ID"

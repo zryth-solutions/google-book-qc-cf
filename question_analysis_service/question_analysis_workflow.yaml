@@ -1,0 +1,133 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: question-analysis-workflow
+  namespace: default
+spec:
+  entrypoint: question-analysis
+  serviceAccountName: question-analysis-sa
+  
+  templates:
+  - name: question-analysis
+    dag:
+      tasks:
+      - name: analyze-questions
+        template: analyze-questions-task
+        arguments:
+          parameters:
+          - name: gcs-folder-path
+            value: "{{workflow.parameters.gcs-folder-path}}"
+          - name: batch-size
+            value: "{{workflow.parameters.batch-size}}"
+          - name: store-in-qdrant
+            value: "{{workflow.parameters.store-in-qdrant}}"
+          - name: verbose
+            value: "{{workflow.parameters.verbose}}"
+      
+      - name: generate-summary
+        template: generate-summary-task
+        depends: analyze-questions
+        arguments:
+          parameters:
+          - name: analysis-results-path
+            value: "{{tasks.analyze-questions.outputs.parameters.analysis-results-path}}"
+  
+  - name: analyze-questions-task
+    inputs:
+      parameters:
+      - name: gcs-folder-path
+      - name: batch-size
+      - name: store-in-qdrant
+      - name: verbose
+    container:
+      image: us-central1-docker.pkg.dev/book-qc-cf/question-analysis/question-analysis:latest
+      command: [python]
+      args: 
+      - /app/question_analysis_service/cli_main.py
+      - gcs-folder
+      - "{{inputs.parameters.gcs-folder-path}}"
+      - --batch-size
+      - "{{inputs.parameters.batch-size}}"
+      - --verbose
+      env:
+      - name: GEMINI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: question-analysis-secrets
+            key: gemini-api-key
+      - name: QDRANT_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: question-analysis-secrets
+            key: qdrant-api-key
+      - name: QDRANT_URL
+        valueFrom:
+          secretKeyRef:
+            name: question-analysis-secrets
+            key: qdrant-url
+      - name: GCP_PROJECT_ID
+        value: "book-qc-cf"
+      - name: BUCKET_NAME
+        value: "book-qc-cf-pdf-storage"
+      - name: GOOGLE_APPLICATION_CREDENTIALS
+        value: "/secrets/gcp-service-account.json"
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: "2"
+        limits:
+          memory: "8Gi"
+          cpu: "4"
+      volumeMounts:
+      - name: gcp-service-account
+        mountPath: /secrets
+        readOnly: true
+    outputs:
+      parameters:
+      - name: analysis-results-path
+        value: "{{inputs.parameters.gcs-folder-path}}/analysis_summary.json"
+  
+  - name: generate-summary-task
+    inputs:
+      parameters:
+      - name: analysis-results-path
+    container:
+      image: us-central1-docker.pkg.dev/book-qc-cf/question-analysis/question-analysis:latest
+      command: [python]
+      args:
+      - /app/generate_analysis_summary.py
+      - "{{inputs.parameters.analysis-results-path}}"
+      env:
+      - name: GCP_PROJECT_ID
+        value: "book-qc-cf"
+      - name: BUCKET_NAME
+        value: "book-qc-cf-pdf-storage"
+      - name: GOOGLE_APPLICATION_CREDENTIALS
+        value: "/secrets/gcp-service-account.json"
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+      volumeMounts:
+      - name: gcp-service-account
+        mountPath: /secrets
+        readOnly: true
+  
+  volumes:
+  - name: gcp-service-account
+    secret:
+      secretName: gcp-service-account-key
+
+  arguments:
+    parameters:
+    - name: gcs-folder-path
+      value: "book_ip_sqp/extracted_questions"
+    - name: batch-size
+      value: "5"
+    - name: store-in-qdrant
+      value: "true"
+    - name: verbose
+      value: "true"
