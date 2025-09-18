@@ -94,94 +94,26 @@ jobs:
         # Try to update existing job first, if it fails, create a new one
         if gcloud run jobs describe $SERVICE-job --region=$REGION >/dev/null 2>&1; then
           echo "Job exists, updating..."
-          gcloud beta run jobs replace - <<EOF
-apiVersion: run.googleapis.com/v1
-kind: Job
-metadata:
-  name: $SERVICE-job
-  namespace: '$PROJECT_ID'
-  labels:
-    cloud.googleapis.com/location: $REGION
-spec:
-  template:
-    spec:
-      template:
-        spec:
-          serviceAccountName: ${{ secrets.SERVICE_ACCOUNT }}
-          containers:
-          - image: $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
-            name: $SERVICE
-            resources:
-              limits:
-                cpu: '4'
-                memory: 8Gi
-              requests:
-                cpu: '2'
-                memory: 4Gi
-            env:
-            - name: PROJECT_ID
-              value: '$PROJECT_ID'
-            - name: BUCKET_NAME
-              value: 'llm-books'
-            - name: REGION
-              value: '$REGION'
-            - name: QDRANT_URL
-              value: 'https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io'
-            - name: MARKER_API_KEY
-              value: '${{ secrets.MARKER_API_KEY }}'
-            - name: QDRANT_API_KEY
-              value: '${{ secrets.QDRANT_API_KEY }}'
-          restartPolicy: Never
-          timeoutSeconds: 3600
-      backoffLimit: 2
-      completions: 1
-      parallelism: 1
-EOF
+          gcloud run jobs update $SERVICE-job \
+            --image=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=${{ secrets.SERVICE_ACCOUNT }} \
+            --set-env-vars="PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io,MARKER_API_KEY=${{ secrets.MARKER_API_KEY }},QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" \
+            --memory=8Gi \
+            --cpu=4 \
+            --max-retries=2 \
+            --task-timeout=3600s
         else
           echo "Job doesn't exist, creating..."
-          gcloud beta run jobs replace - <<EOF
-apiVersion: run.googleapis.com/v1
-kind: Job
-metadata:
-  name: $SERVICE-job
-  namespace: '$PROJECT_ID'
-  labels:
-    cloud.googleapis.com/location: $REGION
-spec:
-  template:
-    spec:
-      template:
-        spec:
-          serviceAccountName: ${{ secrets.SERVICE_ACCOUNT }}
-          containers:
-          - image: $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA
-            name: $SERVICE
-            resources:
-              limits:
-                cpu: '4'
-                memory: 8Gi
-              requests:
-                cpu: '2'
-                memory: 4Gi
-            env:
-            - name: PROJECT_ID
-              value: '$PROJECT_ID'
-            - name: BUCKET_NAME
-              value: 'llm-books'
-            - name: REGION
-              value: '$REGION'
-            - name: QDRANT_URL
-              value: 'https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io'
-            - name: MARKER_API_KEY
-              value: '${{ secrets.MARKER_API_KEY }}'
-            - name: QDRANT_API_KEY
-              value: '${{ secrets.QDRANT_API_KEY }}'
-          restartPolicy: Never
-          timeoutSeconds: 3600
-      backoffLimit: 2
-      completions: 1
-      parallelism: 1
-EOF
+          gcloud run jobs create $SERVICE-job \
+            --image=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:$GITHUB_SHA \
+            --region=$REGION \
+            --service-account=${{ secrets.SERVICE_ACCOUNT }} \
+            --set-env-vars="PROJECT_ID=$PROJECT_ID,BUCKET_NAME=llm-books,REGION=$REGION,QDRANT_URL=https://9becb4cf-82b6-456f-ae0c-d797c6c946cc.us-east4-0.gcp.cloud.qdrant.io,MARKER_API_KEY=${{ secrets.MARKER_API_KEY }},QDRANT_API_KEY=${{ secrets.QDRANT_API_KEY }}" \
+            --memory=8Gi \
+            --cpu=4 \
+            --max-retries=2 \
+            --task-timeout=3600s
         fi
     
     - name: Deploy GCP Workflow
