@@ -7,7 +7,6 @@ main:
       assign:
         - gcs_folder_path: ${default(map.get(input_data, "gcs_folder_path"), "")}
         - batch_size: ${default(map.get(input_data, "batch_size"), 10)}
-        - store_in_qdrant: ${default(map.get(input_data, "store_in_qdrant"), true)}
         - verbose: ${default(map.get(input_data, "verbose"), false)}
         - bucket_name: "book-qc-cf-pdf-storage"
         - project_id: "book-qc-cf"
@@ -26,15 +25,11 @@ main:
               - args: 
                   - "python"
                   - "cli_main.py"
-                  - "analyze-gcs-folder"
-                  - "--gcs-folder-path"
+                  - "--verbose"
+                  - "gcs-folder"
                   - ${gcs_folder_path}
                   - "--batch-size"
                   - ${string(batch_size)}
-                  - "--store-in-qdrant"
-                  - ${string(store_in_qdrant)}
-                  - "--verbose"
-                  - ${string(verbose)}
                 env:
                   - name: GOOGLE_CLOUD_PROJECT
                     value: ${project_id}
@@ -64,6 +59,5 @@ main:
         message: "Question analysis job triggered successfully"
         gcs_folder_path: ${gcs_folder_path}
         batch_size: ${batch_size}
-        store_in_qdrant: ${store_in_qdrant}
         verbose: ${verbose}
         job_execution: ${job_result}

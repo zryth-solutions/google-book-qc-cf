@@ -14,6 +14,9 @@ import uuid
 from analyzer import CBSEQuestionAnalyzer
 from vector_store import VectorStore
 from embedding_generator import EmbeddingGenerator
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
 from utils.gcp.bucket_manager import BucketManager
 
 logger = logging.getLogger(__name__)
