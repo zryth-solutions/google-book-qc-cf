@@ -23,7 +23,7 @@ class BatchQuestionProcessor:
     
     def __init__(self, 
                  project_id: str,
-                 qdrant_api_key: str,
+                 qdrant_api_key: str = None,
                  qdrant_url: str = None,
                  bucket_name: str = None,
                  location: str = "us-central1"):
@@ -32,7 +32,7 @@ class BatchQuestionProcessor:
         
         Args:
             project_id: GCP project ID for Vertex AI and bucket operations
-            qdrant_api_key: Qdrant API key for vector storage
+            qdrant_api_key: Qdrant API key for content retrieval
             qdrant_url: Qdrant cluster URL (optional)
             bucket_name: GCS bucket name for file storage
             location: Vertex AI location
@@ -40,38 +40,67 @@ class BatchQuestionProcessor:
         self.project_id = project_id
         self.location = location
         
-        # Initialize analyzer with Vertex AI
-        self.analyzer = CBSEQuestionAnalyzer(project_id, location)
+        # Initialize vector store for content retrieval (not storage)
+        if qdrant_api_key:
+            self.vector_store = VectorStore(api_key=qdrant_api_key, url=qdrant_url)
+            self.embedding_generator = EmbeddingGenerator(project_id=project_id, location=location)
+            self.content_collection_name = "book_content"  # Collection for book content
+        else:
+            self.vector_store = None
+            self.embedding_generator = None
+            logger.warning("Qdrant not configured - content retrieval will be disabled")
         
-        # Initialize vector store
-        self.vector_store = VectorStore(qdrant_api_key, qdrant_url)
-        
-        # Initialize embedding generator
-        self.embedding_generator = EmbeddingGenerator(project_id, location)
+        # Initialize analyzer with Vertex AI and content retriever
+        self.analyzer = CBSEQuestionAnalyzer(
+            project_id, 
+            location, 
+            content_retriever=self.retrieve_relevant_content if self.vector_store else None
+        )
         
         # Initialize bucket manager
         if bucket_name:
             self.bucket_manager = BucketManager(project_id, bucket_name)
         else:
             self.bucket_manager = None
-            
-        self.collection_name = "question_analysis_results"
+    
+    def retrieve_relevant_content(self, question_text: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """
+        Retrieve relevant book content for a question to improve analysis accuracy
         
-    def create_analysis_collection(self) -> bool:
-        """Create collection for storing analysis results"""
+        Args:
+            question_text: The question text to find relevant content for
+            limit: Maximum number of relevant passages to retrieve
+            
+        Returns:
+            List of relevant content passages with metadata
+        """
+        if not self.vector_store or not self.embedding_generator:
+            logger.warning("Vector store not available - skipping content retrieval")
+            return []
+        
         try:
-            # Skip collection creation if using placeholder API keys
-            if self.vector_store.api_key == "placeholder-qdrant-key":
-                logger.warning("Skipping Qdrant collection creation - using placeholder API key")
-                return False
-                
-            return self.vector_store.create_collection(
-                self.collection_name, 
-                "Question Analysis Results"
+            # Generate embedding for the question
+            question_embedding = self.embedding_generator.generate_single_embedding(question_text)
+            if not question_embedding:
+                logger.warning("Failed to generate embedding for question")
+                return []
+            
+            # Search for relevant content in Qdrant
+            results = self.vector_store.search_similar(
+                collection_name=self.content_collection_name,
+                query_embedding=question_embedding,
+                limit=limit,
+                score_threshold=0.7  # Only return highly relevant content
             )
+            
+            if results:
+                logger.info(f"Retrieved {len(results)} relevant content passages for question analysis")
+            
+            return results
+            
         except Exception as e:
-            logger.error(f"Failed to create analysis collection: {str(e)}")
-            return False
+            logger.error(f"Error retrieving relevant content: {str(e)}")
+            return []
     
     def process_json_file(self, file_path: str, verbose: bool = False) -> Dict[str, Any]:
         """
@@ -132,69 +161,11 @@ class BatchQuestionProcessor:
                 "status": "failed"
             }
     
-    def store_analysis_in_qdrant(self, analysis_result: Dict[str, Any]) -> bool:
-        """
-        Store analysis result in Qdrant vector store
-        
-        Args:
-            analysis_result: Analysis result dictionary
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Create a chunk for the analysis report
-            from semantic_chunker import Chunk
-            
-            chunk = Chunk(
-                content=analysis_result["analysis_report"],
-                chunk_index=0,
-                start_position=0,
-                end_position=len(analysis_result["analysis_report"]),
-                metadata={
-                    "file_name": analysis_result["file_name"],
-                    "file_path": analysis_result["file_path"],
-                    "analysis_date": analysis_result["analysis_date"],
-                    "analysis_id": analysis_result["analysis_id"],
-                    "total_questions": analysis_result.get("total_questions", 0),
-                    "document_title": analysis_result.get("document_info", {}).get("title", "Unknown"),
-                    "document_class": analysis_result.get("document_info", {}).get("class", "10"),
-                    "status": analysis_result["status"],
-                    "gcs_report_path": analysis_result.get("gcs_report_path", ""),
-                    "chunk_type": "analysis_report"
-                }
-            )
-            
-            # Generate embedding for the analysis report using Vertex AI
-            embedding = self.embedding_generator.generate_single_embedding(analysis_result["analysis_report"])
-            
-            if not embedding:
-                logger.error("Failed to generate embedding for analysis report")
-                return False
-            
-            # Store in Qdrant
-            success = self.vector_store.upsert_chunks(
-                self.collection_name,
-                [chunk],
-                [embedding]
-            )
-            
-            if success:
-                logger.info(f"✅ Stored analysis for {analysis_result['file_name']} in Qdrant")
-            else:
-                logger.error(f"❌ Failed to store analysis for {analysis_result['file_name']} in Qdrant")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"❌ Error storing analysis in Qdrant: {str(e)}")
-            return False
     
     def process_folder(self, 
                       folder_path: str, 
                       file_pattern: str = "*.json",
                       batch_size: int = 5,
-                      store_in_qdrant: bool = True,
                       verbose: bool = False) -> Dict[str, Any]:
         """
         Process all JSON files in a folder
@@ -203,7 +174,6 @@ class BatchQuestionProcessor:
             folder_path: Path to the folder containing JSON files
             file_pattern: File pattern to match (default: "*.json")
             batch_size: Number of questions per batch for analysis
-            store_in_qdrant: Whether to store results in Qdrant
             verbose: Whether to show detailed logging
             
         Returns:
@@ -249,10 +219,6 @@ class BatchQuestionProcessor:
                     
                     if analysis_result["status"] == "completed":
                         processed_count += 1
-                        
-                        # Store in Qdrant if requested
-                        if store_in_qdrant:
-                            self.store_analysis_in_qdrant(analysis_result)
                     else:
                         failed_count += 1
                         
@@ -298,7 +264,6 @@ class BatchQuestionProcessor:
                           local_temp_dir: str = "/tmp/question_analysis",
                           file_pattern: str = "*.json",
                           batch_size: int = 5,
-                          store_in_qdrant: bool = True,
                           verbose: bool = False) -> Dict[str, Any]:
         """
         Process JSON files from a GCS folder
@@ -308,7 +273,6 @@ class BatchQuestionProcessor:
             local_temp_dir: Local temporary directory for downloads
             file_pattern: File pattern to match (default: "*.json")
             batch_size: Number of questions per batch for analysis
-            store_in_qdrant: Whether to store results in Qdrant
             verbose: Whether to show detailed logging
             
         Returns:
@@ -370,10 +334,6 @@ class BatchQuestionProcessor:
                     
                     if analysis_result["status"] == "completed":
                         processed_count += 1
-                        
-                        # Store in Qdrant if requested
-                        if store_in_qdrant:
-                            self.store_analysis_in_qdrant(analysis_result)
                     else:
                         failed_count += 1
                     

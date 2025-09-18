@@ -17,8 +17,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 class CBSEQuestionAnalyzer:
-    def __init__(self, project_id: str = None, location: str = "us-central1"):
+    def __init__(self, project_id: str = None, location: str = "us-central1", content_retriever=None):
         self.setup_vertex_ai(project_id, location)
+        self.content_retriever = content_retriever  # Function to retrieve relevant content
         
     def setup_vertex_ai(self, project_id: str = None, location: str = "us-central1"):
         """Initialize Vertex AI"""
@@ -90,7 +91,21 @@ class CBSEQuestionAnalyzer:
         """Create detailed analysis prompt for each batch"""
         
         questions_text = ""
+        relevant_content = ""
+        
         for q_data in questions_batch:
+            # Retrieve relevant content for this question if content retriever is available
+            if self.content_retriever:
+                try:
+                    content_results = self.content_retriever(q_data['text'], limit=2)
+                    if content_results:
+                        relevant_content += f"\n--- RELEVANT CONTENT FOR QUESTION {q_data['number']} ---\n"
+                        for i, result in enumerate(content_results, 1):
+                            relevant_content += f"Source {i} (Relevance: {result.get('score', 'N/A'):.3f}):\n"
+                            relevant_content += f"{result.get('content', '')[:500]}...\n\n"
+                except Exception as e:
+                    logger.warning(f"Failed to retrieve content for question {q_data['number']}: {str(e)}")
+            
             questions_text += f"""
 --- QUESTION {q_data['number']} ---
 SECTION: {q_data['section']} | MARKS: {q_data['marks']}
@@ -116,6 +131,8 @@ CBSE CLASS 10 COMPUTER APPLICATIONS SYLLABUS (EXACT TOPICS):
 
 ANALYZE THESE QUESTIONS WITH EXTREME ATTENTION TO DETAIL:
 {questions_text}
+
+{relevant_content if relevant_content else ""}
 
 FOR EACH QUESTION, SCRUTINIZE:
 

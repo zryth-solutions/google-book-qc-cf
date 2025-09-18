@@ -56,10 +56,6 @@ def analyze_folder(args):
         project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
         qdrant_api_key = os.getenv('QDRANT_API_KEY')
         
-        if not qdrant_api_key:
-            print("❌ Error: Please set QDRANT_API_KEY environment variable")
-            sys.exit(1)
-        
         # Initialize processor
         processor = BatchQuestionProcessor(
             project_id=project_id,
@@ -74,7 +70,6 @@ def analyze_folder(args):
             folder_path=args.folder_path,
             file_pattern=args.file_pattern,
             batch_size=args.batch_size,
-            store_in_qdrant=args.store_in_qdrant,
             verbose=args.verbose
         )
         
@@ -103,10 +98,6 @@ def analyze_gcs_folder(args):
         project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
         qdrant_api_key = os.getenv('QDRANT_API_KEY')
         
-        if not qdrant_api_key:
-            print("❌ Error: Please set QDRANT_API_KEY environment variable")
-            sys.exit(1)
-        
         # Initialize processor
         processor = BatchQuestionProcessor(
             project_id=project_id,
@@ -122,7 +113,6 @@ def analyze_gcs_folder(args):
             local_temp_dir=args.local_temp_dir,
             file_pattern=args.file_pattern,
             batch_size=args.batch_size,
-            store_in_qdrant=args.store_in_qdrant,
             verbose=args.verbose
         )
         
@@ -144,56 +134,7 @@ def analyze_gcs_folder(args):
         print(f"❌ Error: {str(e)}")
         sys.exit(1)
 
-def search_analysis(args):
-    """Search analysis results"""
-    try:
-        # Get configuration
-        project_id = args.project_id or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT_ID', 'book-qc-cf')
-        qdrant_api_key = os.getenv('QDRANT_API_KEY')
-        
-        if not qdrant_api_key:
-            print("❌ Error: Please set QDRANT_API_KEY environment variable")
-            sys.exit(1)
-        
-        # Initialize processor
-        processor = BatchQuestionProcessor(
-            project_id=project_id,
-            qdrant_api_key=qdrant_api_key,
-            qdrant_url=os.getenv('QDRANT_URL'),
-            location=os.getenv('VERTEX_AI_LOCATION', 'us-central1')
-        )
-        
-        # Generate query embedding
-        query_embedding = processor.embedding_generator.generate_single_embedding(args.query)
-        
-        if not query_embedding:
-            print("❌ Error: Failed to generate query embedding")
-            sys.exit(1)
-        
-        # Search in Qdrant
-        results = processor.vector_store.search_similar(
-            collection_name=processor.collection_name,
-            query_embedding=query_embedding,
-            limit=args.limit,
-            score_threshold=args.score_threshold
-        )
-        
-        print(f"\n🔍 SEARCH RESULTS FOR: '{args.query}'")
-        print("="*60)
-        
-        if not results:
-            print("No results found.")
-        else:
-            for i, result in enumerate(results, 1):
-                print(f"\n{i}. Score: {result['score']:.3f}")
-                print(f"   File: {result['metadata'].get('file_name', 'Unknown')}")
-                print(f"   Analysis ID: {result['metadata'].get('analysis_id', 'Unknown')}")
-                print(f"   Questions: {result['metadata'].get('total_questions', 'Unknown')}")
-                print(f"   Content preview: {result['content'][:200]}...")
-        
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
-        sys.exit(1)
+# Search functionality removed - analysis results are stored in GCS only
 
 def main():
     parser = argparse.ArgumentParser(
@@ -248,16 +189,6 @@ Examples:
                            help='File pattern to match (default: *.json)')
     gcs_parser.add_argument('-b', '--batch-size', type=int, default=5, 
                            help='Questions per batch for detailed analysis (default: 5)')
-    gcs_parser.add_argument('--no-qdrant', action='store_true', 
-                           help='Do not store results in Qdrant')
-    
-    # Search analysis
-    search_parser = subparsers.add_parser('search', help='Search analysis results')
-    search_parser.add_argument('query', help='Search query')
-    search_parser.add_argument('--limit', type=int, default=10, 
-                              help='Maximum number of results (default: 10)')
-    search_parser.add_argument('--score-threshold', type=float, default=0.7, 
-                              help='Minimum similarity score (default: 0.7)')
     
     args = parser.parse_args()
     
@@ -272,13 +203,9 @@ Examples:
     if args.command == 'single-file':
         analyze_single_file(args)
     elif args.command == 'folder':
-        args.store_in_qdrant = not args.no_qdrant
         analyze_folder(args)
     elif args.command == 'gcs-folder':
-        args.store_in_qdrant = not args.no_qdrant
         analyze_gcs_folder(args)
-    elif args.command == 'search':
-        search_analysis(args)
     else:
         parser.print_help()
         sys.exit(1)
