@@ -53,13 +53,23 @@ class BucketManager:
         Download a file from GCS bucket
         
         Args:
-            gcs_path: Source path in GCS bucket
+            gcs_path: Source path in GCS bucket (relative path) or full GCS path
             local_file_path: Destination path for local file
             
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Handle full GCS paths (gs://bucket/path)
+            if gcs_path.startswith('gs://'):
+                # Extract the path part after the bucket name
+                parts = gcs_path.split('/', 3)
+                if len(parts) >= 4 and parts[2] == self.bucket_name:
+                    gcs_path = parts[3]  # Get the path after bucket name
+                else:
+                    logger.error(f"Bucket name in path {gcs_path} doesn't match configured bucket {self.bucket_name}")
+                    return False
+            
             blob = self.bucket.blob(gcs_path)
             blob.download_to_filename(local_file_path)
             logger.info(f"Downloaded gs://{self.bucket_name}/{gcs_path} to {local_file_path}")
@@ -77,12 +87,22 @@ class BucketManager:
         
         Args:
             data: Dictionary to upload as JSON
-            gcs_path: Destination path in GCS bucket
+            gcs_path: Destination path in GCS bucket (relative path) or full GCS path
             
         Returns:
             bool: True if successful, False otherwise
         """
         try:
+            # Handle full GCS paths (gs://bucket/path)
+            if gcs_path.startswith('gs://'):
+                # Extract the path part after the bucket name
+                parts = gcs_path.split('/', 3)
+                if len(parts) >= 4 and parts[2] == self.bucket_name:
+                    gcs_path = parts[3]  # Get the path after bucket name
+                else:
+                    logger.error(f"Bucket name in path {gcs_path} doesn't match configured bucket {self.bucket_name}")
+                    return False
+            
             blob = self.bucket.blob(gcs_path)
             blob.upload_from_string(
                 json.dumps(data, indent=2),
@@ -99,12 +119,22 @@ class BucketManager:
         Download and parse JSON from GCS bucket
         
         Args:
-            gcs_path: Source path in GCS bucket
+            gcs_path: Source path in GCS bucket (relative path) or full GCS path
             
         Returns:
             Dict or None if failed
         """
         try:
+            # Handle full GCS paths (gs://bucket/path)
+            if gcs_path.startswith('gs://'):
+                # Extract the path part after the bucket name
+                parts = gcs_path.split('/', 3)
+                if len(parts) >= 4 and parts[2] == self.bucket_name:
+                    gcs_path = parts[3]  # Get the path after bucket name
+                else:
+                    logger.error(f"Bucket name in path {gcs_path} doesn't match configured bucket {self.bucket_name}")
+                    return None
+            
             blob = self.bucket.blob(gcs_path)
             json_str = blob.download_as_text()
             data = json.loads(json_str)
