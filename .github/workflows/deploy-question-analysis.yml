@@ -69,6 +69,8 @@ jobs:
         if gcloud run jobs describe question-analysis-job --region=$REGION >/dev/null 2>&1; then
           echo "Deleting existing job to avoid environment variable conflicts..."
           gcloud run jobs delete question-analysis-job --region=$REGION --quiet
+          echo "Waiting for job deletion to complete..."
+          sleep 30
         fi
         
         # Create new job
