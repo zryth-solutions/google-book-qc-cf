@@ -294,7 +294,7 @@ class BucketManager:
                 if file_extension and not blob.name.lower().endswith(file_extension.lower()):
                     continue
                 
-                files.append(f"gs://{self.bucket_name}/{blob.name}")
+                files.append(blob.name)
             
             logger.info(f"Found {len(files)} files in folder gs://{self.bucket_name}/{folder_path}")
             return files
