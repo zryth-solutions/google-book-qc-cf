@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY question_analysis_service/ .
-COPY utils/ ./utils
+COPY ../utils/ ./utils
 
 # Set Python path
 ENV PYTHONPATH=/app
