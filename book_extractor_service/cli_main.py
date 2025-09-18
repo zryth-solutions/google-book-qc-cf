@@ -171,7 +171,7 @@ def process_folder_questions(folder_path: str, subject: str = "computer_applicat
         logger.info(f"Starting folder extraction: {folder_path}, subject: {subject}")
         
         # List all PDF files in the folder
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf", return_full_paths=False)
         
         if not pdf_files:
             return {
@@ -233,7 +233,7 @@ def process_folder_answers(folder_path: str, subject: str = "computer_applicatio
         logger.info(f"Starting folder answer extraction: {folder_path}, subject: {subject}")
         
         # List all PDF files in the folder
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf", return_full_paths=False)
         
         if not pdf_files:
             return {
@@ -374,7 +374,7 @@ def process_folder_questions_with_output(folder_path: str, subject: str, output_
     """Process folder questions and save to specific output folder"""
     try:
         # Get list of PDF files
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf')
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf', return_full_paths=False)
         
         if not pdf_files:
             return {
@@ -441,7 +441,7 @@ def process_folder_answers_with_output(folder_path: str, subject: str, output_fo
     """Process folder answers and save to specific output folder"""
     try:
         # Get list of PDF files
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf')
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, file_extension='.pdf', return_full_paths=False)
         
         if not pdf_files:
             return {

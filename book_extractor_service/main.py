@@ -298,7 +298,7 @@ def extract_folder_questions():
         logger.info(f"Starting folder extraction: {folder_path}, subject: {subject}")
         
         # List all PDF files in the folder
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf", return_full_paths=False)
         
         if not pdf_files:
             return jsonify({
@@ -366,7 +366,7 @@ def extract_folder_answers():
         logger.info(f"Starting folder answer extraction: {folder_path}, subject: {subject}")
         
         # List all PDF files in the folder
-        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf")
+        pdf_files = bucket_manager.list_files_in_folder(folder_path, ".pdf", return_full_paths=False)
         
         if not pdf_files:
             return jsonify({
@@ -434,7 +434,7 @@ def list_folder_files():
         logger.info(f"Listing files in folder: {folder_path}")
         
         # List all files in the folder
-        files = bucket_manager.list_files_in_folder(folder_path, file_extension)
+        files = bucket_manager.list_files_in_folder(folder_path, file_extension, return_full_paths=False)
         
         return jsonify({
             'status': 'success',

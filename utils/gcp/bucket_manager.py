@@ -185,38 +185,50 @@ class BucketManager:
         """
         return f"https://storage.googleapis.com/{self.bucket_name}/{gcs_path}"
     
-    def list_files_in_folder(self, folder_path: str, file_extension: str = ".pdf") -> List[str]:
+    def list_files_in_folder(self, folder_path: str, file_extension: str = None, return_full_paths: bool = True) -> List[str]:
         """
-        List all files with specified extension in a folder
+        List all files in a GCS folder
         
         Args:
-            folder_path: Path to folder in GCS bucket (e.g., "question_papers/")
-            file_extension: File extension to filter by (default: ".pdf")
+            folder_path: Path to the folder in GCS bucket (without leading slash)
+            file_extension: Optional file extension filter (e.g., '.pdf', '.md')
+            return_full_paths: If True, return full GCS paths (gs://bucket/path). If False, return relative paths.
             
         Returns:
-            List[str]: List of file paths relative to bucket root
+            List[str]: List of file paths in the folder
         """
         try:
-            # Ensure folder_path ends with /
+            # Ensure folder_path doesn't start with slash
+            if folder_path.startswith('/'):
+                folder_path = folder_path[1:]
+            
+            # Add trailing slash if not present
             if not folder_path.endswith('/'):
                 folder_path += '/'
             
-            # List all blobs with the folder prefix
-            blobs = self.client.list_blobs(self.bucket_name, prefix=folder_path)
+            blobs = self.bucket.list_blobs(prefix=folder_path)
+            files = []
             
-            # Filter for files with specified extension
-            pdf_files = []
             for blob in blobs:
-                if blob.name.lower().endswith(file_extension.lower()):
-                    # Skip the folder itself
-                    if blob.name != folder_path:
-                        pdf_files.append(blob.name)
+                # Skip if it's a directory (ends with /)
+                if blob.name.endswith('/'):
+                    continue
+                
+                # Apply file extension filter if provided
+                if file_extension and not blob.name.lower().endswith(file_extension.lower()):
+                    continue
+                
+                # Return full GCS path or relative path based on parameter
+                if return_full_paths:
+                    files.append(f"gs://{self.bucket_name}/{blob.name}")
+                else:
+                    files.append(blob.name)
             
-            logger.info(f"Found {len(pdf_files)} {file_extension} files in {folder_path}")
-            return pdf_files
+            logger.info(f"Found {len(files)} files in folder gs://{self.bucket_name}/{folder_path}")
+            return files
             
         except Exception as e:
-            logger.error(f"Error listing files in folder {folder_path}: {str(e)}")
+            logger.error(f"Failed to list files in folder {folder_path}: {str(e)}")
             return []
     
     def upload_text(self, content: str, gcs_path: str, content_type: str = "text/plain") -> bool:
@@ -262,46 +274,6 @@ class BucketManager:
             logger.error(f"Failed to download text content from {gcs_path}: {str(e)}")
             return None
     
-    def list_files_in_folder(self, folder_path: str, file_extension: str = None) -> List[str]:
-        """
-        List all files in a GCS folder
-        
-        Args:
-            folder_path: Path to the folder in GCS bucket (without leading slash)
-            file_extension: Optional file extension filter (e.g., '.pdf', '.md')
-            
-        Returns:
-            List[str]: List of file paths in the folder
-        """
-        try:
-            # Ensure folder_path doesn't start with slash
-            if folder_path.startswith('/'):
-                folder_path = folder_path[1:]
-            
-            # Add trailing slash if not present
-            if not folder_path.endswith('/'):
-                folder_path += '/'
-            
-            blobs = self.bucket.list_blobs(prefix=folder_path)
-            files = []
-            
-            for blob in blobs:
-                # Skip if it's a directory (ends with /)
-                if blob.name.endswith('/'):
-                    continue
-                
-                # Apply file extension filter if provided
-                if file_extension and not blob.name.lower().endswith(file_extension.lower()):
-                    continue
-                
-                files.append(blob.name)
-            
-            logger.info(f"Found {len(files)} files in folder gs://{self.bucket_name}/{folder_path}")
-            return files
-            
-        except Exception as e:
-            logger.error(f"Failed to list files in folder {folder_path}: {str(e)}")
-            return []
     
     def get_folder_structure(self, folder_path: str) -> Dict[str, Any]:
         """
