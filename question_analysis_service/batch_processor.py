@@ -47,7 +47,7 @@ class BatchQuestionProcessor:
         if qdrant_api_key:
             self.vector_store = VectorStore(api_key=qdrant_api_key, url=qdrant_url)
             self.embedding_generator = EmbeddingGenerator(project_id=project_id, location=location)
-            self.content_collection_name = "book_content"  # Collection for book content
+            self.content_collection_name = "book_social_science_ncert_class_xii"  # Collection for book content
         else:
             self.vector_store = None
             self.embedding_generator = None

@@ -11,6 +11,9 @@ main:
           - update_existing: true
           - folder_path: ${input_data.folder_path}
           - book_name: ${input_data.book_name}
+          - qdrant_url: ${sys.get_env("QDRANT_URL")}
+          - qdrant_api_key: ${sys.get_env("QDRANT_API_KEY")}
+          - marker_api_key: ${sys.get_env("MARKER_API_KEY")}
     
     # Execute RAG ingestion job using HTTP connector for folder processing
     - process_rag_job:
@@ -38,6 +41,12 @@ main:
                       value: ${bucket_name}
                     - name: REGION
                       value: ${region}
+                    - name: QDRANT_URL
+                      value: ${qdrant_url}
+                    - name: QDRANT_API_KEY
+                      value: ${qdrant_api_key}
+                    - name: MARKER_API_KEY
+                      value: ${marker_api_key}
         result: process_job
     
     # Wait for job completion
