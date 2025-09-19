@@ -5,7 +5,6 @@ Generate comprehensive analysis summary from batch processing results
 
 import os
 import sys
-import json
 import argparse
 from pathlib import Path
 from datetime import datetime
