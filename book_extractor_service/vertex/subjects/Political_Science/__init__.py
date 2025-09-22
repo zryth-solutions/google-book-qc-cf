@@ -1,0 +1,3 @@
+"""
+Political Science subject package
+"""

@@ -134,6 +134,39 @@ class CSBESocialScienceExtractor(SubjectExtractor):
     def get_subject_name(self) -> str:
         return self._get_subject_name()
 
+class PoliticalScienceExtractor(SubjectExtractor):
+    """Extractor for CBSE Political Science Class 12 subject"""
+    
+    def __init__(self):
+        from .subjects.Political_Science.prompt import (
+            get_question_config, get_answer_config, get_question_extraction_prompt,
+            get_answer_extraction_prompt, get_document_overview_prompt, get_subject_name
+        )
+        self._get_question_config = get_question_config
+        self._get_answer_config = get_answer_config
+        self._get_question_extraction_prompt = get_question_extraction_prompt
+        self._get_answer_extraction_prompt = get_answer_extraction_prompt
+        self._get_document_overview_prompt = get_document_overview_prompt
+        self._get_subject_name = get_subject_name
+    
+    def get_question_config(self) -> ExtractionConfig:
+        return self._get_question_config()
+    
+    def get_answer_config(self) -> ExtractionConfig:
+        return self._get_answer_config()
+    
+    def get_question_extraction_prompt(self, batch_number: int, start_num: int, end_num: int) -> str:
+        return self._get_question_extraction_prompt(batch_number, start_num, end_num)
+    
+    def get_answer_extraction_prompt(self, batch_number: int, start_num: int, end_num: int) -> str:
+        return self._get_answer_extraction_prompt(batch_number, start_num, end_num)
+    
+    def get_document_overview_prompt(self, content_type: str) -> str:
+        return self._get_document_overview_prompt(content_type)
+    
+    def get_subject_name(self) -> str:
+        return self._get_subject_name()
+
 class SubjectExtractorFactory:
     """Factory class for creating subject-specific extractors"""
     
@@ -146,7 +179,12 @@ class SubjectExtractorFactory:
         "csbe_social_science": CSBESocialScienceExtractor,
         "csbe_socialscience": CSBESocialScienceExtractor,
         "social_science": CSBESocialScienceExtractor,
-        "socialscience": CSBESocialScienceExtractor
+        "socialscience": CSBESocialScienceExtractor,
+        "political_science": PoliticalScienceExtractor,
+        "politicalscience": PoliticalScienceExtractor,
+        "political_science_12": PoliticalScienceExtractor,
+        "cbse_political_science": PoliticalScienceExtractor,
+        "cbse_political_science_12": PoliticalScienceExtractor
     }
     
     @classmethod
